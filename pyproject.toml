@@ -9,7 +9,6 @@ dependencies = [
     "django~=5.2",
     "django-unfold>=0.98.0",
     "gunicorn>=25.3.0",
-    "psycopg2>=2.9.12",
     "psycopg[binary]>=3.3.4",
     "python-dotenv>=1.2.2",
     "whitenoise>=6.12.0",

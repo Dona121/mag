@@ -126,6 +126,7 @@ LOGOUT_REDIRECT_URL = "/auth/login/"
 # Railway pone la app detras de proxy https
 CSRF_TRUSTED_ORIGINS = [
     "https://modeloaltagerencia-production.up.railway.app",
+    "https://mag-production.up.railway.app/"
 ]
 _extra_csrf = os.getenv("CSRF_TRUSTED_ORIGINS", "")
 if _extra_csrf:
