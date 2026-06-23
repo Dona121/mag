@@ -151,15 +151,30 @@ def _puede_editar(indicadores_editables, indicador_id):
 #
 # Nota: solo el peso del SUBINDICADOR participa hoy en `ponderacion`; los pesos de
 # Indicador/Pilar no se aplican (queda pendiente de definicion del negocio).
-def _puntajes_por_dependencia(categoria, periodo, pilar=None):
-    """{dep_id: (nombre, total_ponderacion)} para una categoria y periodo.
+def _eval_kwargs(categoria, modelo):
+    """Filtro a nivel de la `Evaluacion` (categoria + versión del modelo).
+
+    Devuelve los kwargs `evaluacion__categoria` / `evaluacion__modelo_evaluacion`
+    que se aplican sobre EvaluacionResultado y (vía la relación inversa) sobre
+    Periodo/Dependencia. `categoria` es el pivote; `modelo` es el filtro de versión.
+    """
+    kw = {}
+    if categoria is not None:
+        kw["evaluacion__categoria"] = categoria
+    if modelo is not None:
+        kw["evaluacion__modelo_evaluacion"] = modelo
+    return kw
+
+
+def _puntajes_por_dependencia(categoria, modelo, periodo, pilar=None):
+    """{dep_id: (nombre, total_ponderacion)} para una categoria/modelo y periodo.
 
     Si `pilar` se indica, solo suma los subindicadores de ese pilar (ranking por pilar).
     """
     if periodo is None or categoria is None:
         return {}
     qs = EvaluacionResultado.objects.filter(
-        evaluacion__dependencia__categoria=categoria, evaluacion__periodo=periodo
+        evaluacion__periodo=periodo, **_eval_kwargs(categoria, modelo)
     )
     if pilar is not None:
         qs = qs.filter(subindicador__indicador__pilar=pilar)
@@ -175,12 +190,12 @@ def _puntajes_por_dependencia(categoria, periodo, pilar=None):
     }
 
 
-def _promedios_por_pilar(categoria, periodo, pilar=None):
+def _promedios_por_pilar(categoria, modelo, periodo, pilar=None):
     """{pilar_id: {'nombre','orden','promedio'}} — promedio entre dependencias."""
     if periodo is None or categoria is None:
         return {}
     qs = EvaluacionResultado.objects.filter(
-        evaluacion__dependencia__categoria=categoria, evaluacion__periodo=periodo
+        evaluacion__periodo=periodo, **_eval_kwargs(categoria, modelo)
     )
     if pilar is not None:
         qs = qs.filter(subindicador__indicador__pilar=pilar)
@@ -239,17 +254,19 @@ def _resolver(items, raw):
     return next((x for x in items if x.pk == pk), None)
 
 
-def _periodos_con_datos(categoria, solo_publicos=False):
-    """Periodos con evaluaciones para la categoria, del más reciente al más antiguo.
+def _periodos_con_datos(categoria, modelo, vigencia, solo_publicos=False):
+    """Periodos con evaluaciones para la categoria/modelo, del más reciente al más antiguo.
 
-    `solo_publicos=True` restringe a periodos con `publico=True` (reporte público):
-    el equipo puede tener datos previos que no deben salir al público hasta que el
-    admin marque el periodo como público. El dashboard interno usa el valor por
-    defecto (False) y ve todos los periodos.
+    `vigencia` (año) opcional acota a ese año. `solo_publicos=True` restringe a periodos
+    con `publico=True` (reporte público): el equipo puede tener datos previos que no deben
+    salir al público hasta que el admin marque el periodo como público. El dashboard
+    interno usa el valor por defecto (False) y ve todos los periodos.
     """
     if categoria is None:
         return []
-    qs = Periodo.objects.filter(evaluacion__dependencia__categoria=categoria)
+    qs = Periodo.objects.filter(**_eval_kwargs(categoria, modelo))
+    if vigencia is not None:
+        qs = qs.filter(vigencia=vigencia)
     if solo_publicos:
         qs = qs.filter(publico=True)
     return list(
@@ -257,8 +274,8 @@ def _periodos_con_datos(categoria, solo_publicos=False):
     )
 
 
-def _datos_dashboard(categoria, actual, anterior, pilar=None):
-    """Calcula el tablero para una categoria/periodos/pilar dados.
+def _datos_dashboard(categoria, modelo, actual, anterior, pilar=None):
+    """Calcula el tablero para una categoria/modelo/periodos/pilar dados.
 
     - `categoria` None -> None (no hay categoria).
     - `actual` None -> {sin_datos} (la categoria no tiene periodos con datos).
@@ -269,12 +286,12 @@ def _datos_dashboard(categoria, actual, anterior, pilar=None):
     if actual is None:
         return {"categoria": categoria, "sin_datos": True}
 
-    pun_act = _puntajes_por_dependencia(categoria, actual, pilar)
-    pun_ant = _puntajes_por_dependencia(categoria, anterior, pilar)
+    pun_act = _puntajes_por_dependencia(categoria, modelo, actual, pilar)
+    pun_ant = _puntajes_por_dependencia(categoria, modelo, anterior, pilar)
     rank_act = _ranking(pun_act)
     rank_ant = _ranking(pun_ant)
-    pil_act = _promedios_por_pilar(categoria, actual, pilar)
-    pil_ant = _promedios_por_pilar(categoria, anterior, pilar)
+    pil_act = _promedios_por_pilar(categoria, modelo, actual, pilar)
+    pil_ant = _promedios_por_pilar(categoria, modelo, anterior, pilar)
 
     imag_act = sum((p["promedio"] for p in pil_act.values()), Decimal("0"))
     imag_ant = sum((p["promedio"] for p in pil_ant.values()), Decimal("0")) if anterior else None
@@ -350,15 +367,15 @@ def dashboard(request):
     return render(request, "base/dashboard.html", contexto)
 
 
-def _serie_temporal(categoria, pilar=None, solo_publicos=False):
+def _serie_temporal(categoria, modelo, vigencia, pilar=None, solo_publicos=False):
     """Series para el gráfico de evolución: IMAG y cada pilar a través de los periodos.
 
     Eje X = periodos del más antiguo al más reciente. Honra el filtro `pilar`.
     `solo_publicos=True` limita el eje a periodos públicos (reporte público).
     """
-    periodos = list(reversed(_periodos_con_datos(categoria, solo_publicos)))
+    periodos = list(reversed(_periodos_con_datos(categoria, modelo, vigencia, solo_publicos)))
     labels = [str(p) for p in periodos]
-    por_periodo = [_promedios_por_pilar(categoria, p, pilar) for p in periodos]
+    por_periodo = [_promedios_por_pilar(categoria, modelo, p, pilar) for p in periodos]
     imag = [
         float(sum((x["promedio"] for x in d.values()), Decimal("0")))
         for d in por_periodo
@@ -380,11 +397,11 @@ def _serie_temporal(categoria, pilar=None, solo_publicos=False):
 
 
 # ----------------------------------------------------- Dashboard: dependencia
-def _filtra_resultados(categoria, periodo, dependencia, pilar=None, indicador=None):
+def _filtra_resultados(periodo, dependencia, pilar=None, indicador=None):
     """Queryset base de EvaluacionResultado para una dependencia (con filtros).
 
-    `categoria` se mantiene en la firma por simetría con el resto de la capa de
-    reporte; la dependencia ya acota el alcance, así que no se vuelve a filtrar.
+    La dependencia + periodo ya acotan a una única evaluación (constraint
+    unique(periodo, dependencia)), así que no hace falta filtrar por categoria/modelo.
     """
     qs = EvaluacionResultado.objects.filter(
         evaluacion__periodo=periodo,
@@ -397,22 +414,22 @@ def _filtra_resultados(categoria, periodo, dependencia, pilar=None, indicador=No
     return qs
 
 
-def _total_dependencia(categoria, periodo, dependencia, pilar=None, indicador=None):
+def _total_dependencia(periodo, dependencia, pilar=None, indicador=None):
     """Suma de ponderacion (puntaje total) de una dependencia en un periodo."""
     if periodo is None or dependencia is None:
         return Decimal("0")
     total = _filtra_resultados(
-        categoria, periodo, dependencia, pilar, indicador
+        periodo, dependencia, pilar, indicador
     ).aggregate(t=Sum("ponderacion"))["t"]
     return total or Decimal("0")
 
 
-def _puntajes_por_pilar_dependencia(categoria, periodo, dependencia, pilar=None, indicador=None):
+def _puntajes_por_pilar_dependencia(periodo, dependencia, pilar=None, indicador=None):
     """{pilar_id: {'nombre','orden','total'}} para una dependencia/periodo."""
     if periodo is None or dependencia is None:
         return {}
     filas = (
-        _filtra_resultados(categoria, periodo, dependencia, pilar, indicador)
+        _filtra_resultados(periodo, dependencia, pilar, indicador)
         .values(
             "subindicador__indicador__pilar",
             "subindicador__indicador__pilar__nombre__nombre",
@@ -430,26 +447,26 @@ def _puntajes_por_pilar_dependencia(categoria, periodo, dependencia, pilar=None,
     }
 
 
-def _datos_dependencia(categoria, actual, anterior, dependencia, pilar=None, indicador=None):
+def _datos_dependencia(categoria, modelo, actual, anterior, dependencia, pilar=None, indicador=None):
     """Tablero de una dependencia: puntaje total, posición y nº de pilares evaluados."""
     if categoria is None:
         return None
     if actual is None or dependencia is None:
         return {"categoria": categoria, "dependencia": dependencia, "sin_datos": True}
 
-    total_act = _total_dependencia(categoria, actual, dependencia, pilar, indicador)
+    total_act = _total_dependencia(actual, dependencia, pilar, indicador)
     total_ant = (
-        _total_dependencia(categoria, anterior, dependencia, pilar, indicador)
+        _total_dependencia(anterior, dependencia, pilar, indicador)
         if anterior else None
     )
     var = (total_act - total_ant) if total_ant is not None else None
 
     pilares_breakdown = _puntajes_por_pilar_dependencia(
-        categoria, actual, dependencia, pilar, indicador
+        actual, dependencia, pilar, indicador
     )
 
-    # Posicion en el ranking de la categoria (puntaje total, sin filtros de pilar/indicador).
-    puntajes = _puntajes_por_dependencia(categoria, actual)
+    # Posicion en el ranking de la categoria/modelo (puntaje total, sin filtros de pilar).
+    puntajes = _puntajes_por_dependencia(categoria, modelo, actual)
     posicion = _ranking(puntajes).get(dependencia.pk)
 
     return {
@@ -469,19 +486,19 @@ def _datos_dependencia(categoria, actual, anterior, dependencia, pilar=None, ind
     }
 
 
-def _serie_dependencia(categoria, dependencia, pilar=None, indicador=None, solo_publicos=False):
+def _serie_dependencia(categoria, modelo, vigencia, dependencia, pilar=None, indicador=None, solo_publicos=False):
     """Series de evolución de una dependencia: total y cada pilar por periodo.
 
     `solo_publicos=True` limita el eje a periodos públicos (reporte público).
     """
-    periodos = list(reversed(_periodos_con_datos(categoria, solo_publicos)))
+    periodos = list(reversed(_periodos_con_datos(categoria, modelo, vigencia, solo_publicos)))
     labels = [str(p) for p in periodos]
     total = [
-        float(_total_dependencia(categoria, p, dependencia, pilar, indicador))
+        float(_total_dependencia(p, dependencia, pilar, indicador))
         for p in periodos
     ]
     por_periodo = [
-        _puntajes_por_pilar_dependencia(categoria, p, dependencia, pilar, indicador)
+        _puntajes_por_pilar_dependencia(p, dependencia, pilar, indicador)
         for p in periodos
     ]
     meta = {}
@@ -503,7 +520,7 @@ def _categorias_disponibles():
     """Categorias (clasificacion de dependencias) ordenadas para los selectores.
 
     Son el pivote del tablero: las pestañas/selector superior cambian de categoria
-    y toda la analitica se filtra por `dependencia__categoria`.
+    y toda la analitica se filtra por `evaluacion__categoria`.
     """
     return list(_orden_nombre(Categoria.objects.all()))
 
@@ -516,17 +533,58 @@ def _resolver_categoria(request, categorias):
     )
 
 
-def _pilares_de_categoria(categoria):
-    """Pilares presentes en las evaluaciones de la categoria (filtro 'Indicador').
+def _modelos_disponibles():
+    """Versiones del modelo, de la más reciente a la más antigua (filtro de versión)."""
+    return list(ModeloEvaluacion.objects.order_by("-version", "-activo", "nombre"))
 
-    Antes los pilares se sacaban del modelo; ahora que el pivote es la categoria, se
-    derivan de los pilares efectivamente evaluados en sus dependencias.
+
+def _resolver_modelo(request, modelos):
+    """Modelo (versión) del GET; por defecto el activo, o el primero disponible.
+
+    Siempre hay un modelo seleccionado (no existe opción "todos"): cada versión tiene
+    su propia estructura de pilares, así que mezclarlas no tendría sentido.
+    """
+    return (
+        _resolver(modelos, request.GET.get("modelo"))
+        or next((m for m in modelos if m.activo), None)
+        or (modelos[0] if modelos else None)
+    )
+
+
+def _vigencias_disponibles(categoria, modelo):
+    """Años (vigencias) con datos para la categoria/modelo, de mayor a menor."""
+    if categoria is None:
+        return []
+    return list(
+        Periodo.objects
+        .filter(vigencia__isnull=False, **_eval_kwargs(categoria, modelo))
+        .values_list("vigencia", flat=True)
+        .distinct()
+        .order_by("-vigencia")
+    )
+
+
+def _resolver_vigencia(request, vigencias):
+    """Vigencia (año) seleccionada en el GET; None = todas las vigencias."""
+    raw = request.GET.get("vigencia")
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return v if v in vigencias else None
+
+
+def _pilares_de_categoria(categoria, modelo):
+    """Pilares presentes en las evaluaciones de la categoria/modelo (filtro 'Indicador').
+
+    Se derivan de los pilares efectivamente evaluados (no del catálogo del modelo) para
+    no ofrecer pilares sin datos en el alcance seleccionado.
     """
     if categoria is None:
         return []
     pilar_ids = (
         EvaluacionResultado.objects
-        .filter(evaluacion__dependencia__categoria=categoria)
+        .filter(**_eval_kwargs(categoria, modelo))
         .values_list("subindicador__indicador__pilar", flat=True)
         .distinct()
     )
@@ -536,14 +594,18 @@ def _pilares_de_categoria(categoria):
 
 
 def _resolver_dependencia_contexto(request, solo_publicos=False):
-    """Resuelve categoria/periodos/dependencia/pilar desde el GET (compartido).
+    """Resuelve categoria/modelo/vigencia/periodos/dependencia/pilar desde el GET.
 
     `solo_publicos=True` (reporte público) limita periodos y dependencias a los que
     tienen datos en periodos públicos; el dashboard interno usa False (ve todo).
     """
     categorias = _categorias_disponibles()
     categoria = _resolver_categoria(request, categorias)
-    periodos = _periodos_con_datos(categoria, solo_publicos)
+    modelos = _modelos_disponibles()
+    modelo = _resolver_modelo(request, modelos)
+    vigencias = _vigencias_disponibles(categoria, modelo)
+    vigencia = _resolver_vigencia(request, vigencias)
+    periodos = _periodos_con_datos(categoria, modelo, vigencia, solo_publicos)
     actual = _resolver(periodos, request.GET.get("periodo")) or (periodos[0] if periodos else None)
 
     comparar_raw = request.GET.get("comparar")
@@ -556,7 +618,9 @@ def _resolver_dependencia_contexto(request, solo_publicos=False):
             anterior = periodos[idx + 1] if idx + 1 < len(periodos) else None
 
     if categoria:
-        dep_qs = Dependencia.objects.filter(categoria=categoria, evaluacion__isnull=False)
+        dep_qs = Dependencia.objects.filter(**_eval_kwargs(categoria, modelo))
+        if vigencia is not None:
+            dep_qs = dep_qs.filter(evaluacion__periodo__vigencia=vigencia)
         if solo_publicos:
             dep_qs = dep_qs.filter(evaluacion__periodo__publico=True)
         dependencias = list(dep_qs.distinct().order_by("nombre"))
@@ -564,11 +628,14 @@ def _resolver_dependencia_contexto(request, solo_publicos=False):
         dependencias = []
     dependencia = _resolver(dependencias, request.GET.get("dependencia")) or (dependencias[0] if dependencias else None)
 
-    pilares_disp = _pilares_de_categoria(categoria)
+    pilares_disp = _pilares_de_categoria(categoria, modelo)
     pilar = _resolver(pilares_disp, request.GET.get("pilar"))
 
     return {
-        "categorias": categorias, "categoria": categoria, "periodos": periodos,
+        "categorias": categorias, "categoria": categoria,
+        "modelos": modelos, "modelo": modelo,
+        "vigencias": vigencias, "vigencia": vigencia,
+        "periodos": periodos,
         "actual": actual, "anterior": anterior, "comparar_raw": comparar_raw,
         "dependencias": dependencias, "dependencia": dependencia,
         "pilares_disp": pilares_disp, "pilar": pilar,
@@ -615,7 +682,11 @@ def _reporte_filtros(request, solo_publicos=True):
     """
     categorias = _categorias_disponibles()
     categoria = _resolver_categoria(request, categorias)
-    periodos = _periodos_con_datos(categoria, solo_publicos=solo_publicos)
+    modelos = _modelos_disponibles()
+    modelo = _resolver_modelo(request, modelos)
+    vigencias = _vigencias_disponibles(categoria, modelo)
+    vigencia = _resolver_vigencia(request, vigencias)
+    periodos = _periodos_con_datos(categoria, modelo, vigencia, solo_publicos=solo_publicos)
     actual = _resolver(periodos, request.GET.get("periodo")) or (periodos[0] if periodos else None)
 
     comparar_raw = request.GET.get("comparar")
@@ -627,11 +698,14 @@ def _reporte_filtros(request, solo_publicos=True):
             idx = periodos.index(actual)
             anterior = periodos[idx + 1] if idx + 1 < len(periodos) else None
 
-    pilares_disp = _pilares_de_categoria(categoria)
+    pilares_disp = _pilares_de_categoria(categoria, modelo)
     pilar = _resolver(pilares_disp, request.GET.get("pilar"))
 
     return {
-        "categorias": categorias, "categoria": categoria, "periodos": periodos,
+        "categorias": categorias, "categoria": categoria,
+        "modelos": modelos, "modelo": modelo,
+        "vigencias": vigencias, "vigencia": vigencia,
+        "periodos": periodos,
         "actual": actual, "anterior": anterior, "comparar_raw": comparar_raw,
         "pilares_disp": pilares_disp, "pilar": pilar,
     }
@@ -665,9 +739,12 @@ def _ctx_filtros(f, vista, interno=False):
     ctx = {
         "vista": vista,
         "categorias": f["categorias"], "periodos": f["periodos"], "pilares_disp": f["pilares_disp"],
+        "modelos": f["modelos"], "vigencias": f["vigencias"],
         "sel_categoria": f["categoria"], "sel_periodo": f["actual"], "sel_comparar": f["anterior"],
+        "sel_modelo": f["modelo"], "sel_vigencia": f["vigencia"],
         "sel_comparar_none": f["comparar_raw"] == "0", "sel_pilar": f["pilar"],
-        "categoria": f["categoria"], "periodo_actual": f["actual"], "periodo_anterior": f["anterior"],
+        "categoria": f["categoria"], "modelo": f["modelo"], "vigencia": f["vigencia"],
+        "periodo_actual": f["actual"], "periodo_anterior": f["anterior"],
     }
     ctx.update(_reporte_chrome(vista, interno))
     return ctx
@@ -691,8 +768,9 @@ def reporte_publico(request, interno=False):
     `interno=True` (dashboard del equipo) levanta la restriccion de periodo publico.
     """
     f = _reporte_filtros(request, solo_publicos=not interno)
-    categoria, actual, anterior, pilar = f["categoria"], f["actual"], f["anterior"], f["pilar"]
-    dash = _datos_dashboard(categoria, actual, anterior, pilar)
+    categoria, modelo, vigencia = f["categoria"], f["modelo"], f["vigencia"]
+    actual, anterior, pilar = f["actual"], f["anterior"], f["pilar"]
+    dash = _datos_dashboard(categoria, modelo, actual, anterior, pilar)
     ctx = _ctx_filtros(f, "imag", interno)
 
     if dash is None or dash.get("sin_datos"):
@@ -717,7 +795,7 @@ def reporte_publico(request, interno=False):
             "ult_a": _shade(ult, 100), "ant_a": _shade(ant, 100) if ant is not None else 0.0,
         })
 
-    serie = _serie_temporal(categoria, pilar, solo_publicos=not interno)
+    serie = _serie_temporal(categoria, modelo, vigencia, pilar, solo_publicos=not interno)
     payload = {
         "labels": serie["labels"],
         "pilares": [{"nombre": p["nombre"], "peso": p["peso"], "data": p["data"]} for p in serie["pilares"]],
@@ -742,8 +820,9 @@ def reporte_variaciones(request, interno=False):
     `interno=True` (dashboard del equipo) levanta la restriccion de periodo publico.
     """
     f = _reporte_filtros(request, solo_publicos=not interno)
-    categoria, actual, anterior, pilar = f["categoria"], f["actual"], f["anterior"], f["pilar"]
-    dash = _datos_dashboard(categoria, actual, anterior, pilar)
+    categoria, modelo = f["categoria"], f["modelo"]
+    actual, anterior, pilar = f["actual"], f["anterior"], f["pilar"]
+    dash = _datos_dashboard(categoria, modelo, actual, anterior, pilar)
     ctx = _ctx_filtros(f, "variaciones", interno)
 
     if dash is None or dash.get("sin_datos"):
@@ -797,26 +876,34 @@ def reporte_desempeno(request, interno=False):
     """
     ctx = _resolver_dependencia_contexto(request, solo_publicos=not interno)
     categoria = ctx["categoria"]
+    modelo = ctx["modelo"]
+    vigencia = ctx["vigencia"]
     actual = ctx["actual"]
     anterior = ctx["anterior"]
     dependencia = ctx["dependencia"]
     pilar = ctx["pilar"]
 
-    dash = _datos_dependencia(categoria, actual, anterior, dependencia, pilar)
+    dash = _datos_dependencia(categoria, modelo, actual, anterior, dependencia, pilar)
 
     filtros = {
         "vista": "desempeno",
         "categorias": ctx["categorias"],
+        "modelos": ctx["modelos"],
+        "vigencias": ctx["vigencias"],
         "periodos": ctx["periodos"],
         "dependencias": ctx["dependencias"],
         "pilares_disp": ctx["pilares_disp"],
         "sel_categoria": categoria,
+        "sel_modelo": modelo,
+        "sel_vigencia": vigencia,
         "sel_periodo": actual,
         "sel_comparar": anterior,
         "sel_comparar_none": ctx["comparar_raw"] == "0",
         "sel_dependencia": dependencia,
         "sel_pilar": pilar,
         "categoria": categoria,
+        "modelo": modelo,
+        "vigencia": vigencia,
         "periodo_actual": actual,
         "periodo_anterior": anterior,
     }
@@ -829,7 +916,7 @@ def reporte_desempeno(request, interno=False):
     total_act = float(dash["total_actual"])
     total_ant = float(dash["total_anterior"]) if dash["total_anterior"] is not None else None
     total_var = float(dash["total_var"]) if dash["total_var"] is not None else None
-    serie = _serie_dependencia(categoria, dependencia, pilar, solo_publicos=not interno)
+    serie = _serie_dependencia(categoria, modelo, vigencia, dependencia, pilar, solo_publicos=not interno)
 
     payload = {
         "labels": serie["labels"],
@@ -857,8 +944,9 @@ def reporte_ranking(request, interno=False):
     `interno=True` (dashboard del equipo) levanta la restriccion de periodo publico.
     """
     f = _reporte_filtros(request, solo_publicos=not interno)
-    categoria, actual, anterior, pilar = f["categoria"], f["actual"], f["anterior"], f["pilar"]
-    dash = _datos_dashboard(categoria, actual, anterior, pilar)
+    categoria, modelo = f["categoria"], f["modelo"]
+    actual, anterior, pilar = f["actual"], f["anterior"], f["pilar"]
+    dash = _datos_dashboard(categoria, modelo, actual, anterior, pilar)
     ctx = _ctx_filtros(f, "ranking", interno)
     # Objetivo del ranking = umbral del periodo actual (puede variar de un periodo a
     # otro). Si el periodo no tiene umbral definido, no se dibuja la linea de objetivo.
@@ -1336,7 +1424,7 @@ class EvaluacionListView(LoginRequiredMixin, ListView):
 
 class EvaluacionCreateView(LoginRequiredMixin, CreateView):
     model = Evaluacion
-    fields = ["periodo", "dependencia"]
+    fields = ["periodo", "dependencia", "categoria"]
     template_name = "evaluaciones/evaluacion_form.html"
 
     def get_form(self, form_class=None):
@@ -1350,11 +1438,13 @@ class EvaluacionCreateView(LoginRequiredMixin, CreateView):
         form.fields["periodo"].queryset = Periodo.objects.filter(activo=True).order_by(
             F("orden").asc(nulls_last=True), "-creado_en"
         )
+        form.fields["categoria"].queryset = _orden_nombre(Categoria.objects.all())
         return form
 
     def form_valid(self, form):
         periodo = form.cleaned_data["periodo"]
         dependencia = form.cleaned_data["dependencia"]
+        categoria = form.cleaned_data["categoria"]
         if Evaluacion.objects.filter(periodo=periodo, dependencia=dependencia).exists():
             form.add_error(None,
                 "Ya existe una evaluacion registrada para esa combinacion de "
@@ -1374,7 +1464,7 @@ class EvaluacionCreateView(LoginRequiredMixin, CreateView):
             with transaction.atomic():
                 self.object = Evaluacion.objects.create(
                     periodo=periodo, dependencia=dependencia,
-                    modelo_evaluacion=asignacion.modelo,
+                    modelo_evaluacion=asignacion.modelo, categoria=categoria,
                 )
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))

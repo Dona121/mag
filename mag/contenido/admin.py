@@ -133,12 +133,10 @@ class CategoriaAdmin(ModelAdmin):
 
 @admin.register(Dependencia)
 class DependenciaAdmin(ModelAdmin):
-    list_display = ("nombre", "categoria", "creado_en")
-    list_filter = ("categoria",)
+    list_display = ("nombre", "creado_en")
     search_fields = ("nombre",)
-    autocomplete_fields = ("categoria",)
     ordering = ("nombre",)
-    fieldsets = (("Dependencia", {"fields": ("categoria", "nombre")}),)
+    fieldsets = (("Dependencia", {"fields": ("nombre",)}),)
 
 
 @admin.register(DependenciaModelo)
@@ -242,11 +240,11 @@ class CriterioAdmin(ModelAdmin):
 
 @admin.register(Periodo)
 class PeriodoAdmin(ModelAdmin):
-    list_display = ("orden", "nombre", "umbral", "activo", "publico", "creado_en")
-    list_filter = ("activo", "publico")
+    list_display = ("orden", "nombre", "vigencia", "umbral", "activo", "publico", "creado_en")
+    list_filter = ("vigencia", "activo", "publico")
     list_editable = ("activo", "publico")
     search_fields = ("nombre",)
-    ordering = ("-activo", "orden", "-creado_en")
+    ordering = ("-activo", "-vigencia", "orden", "-creado_en")
     actions = (
         "activar_periodos", "desactivar_periodos",
         "publicar_periodos", "despublicar_periodos",
@@ -255,8 +253,9 @@ class PeriodoAdmin(ModelAdmin):
         (
             "Periodo",
             {
-                "fields": ("orden", "nombre", "umbral", "activo", "publico"),
-                "description": "Tip: incluya en el nombre los meses del periodo "
+                "fields": ("orden", "nombre", "vigencia", "umbral", "activo", "publico"),
+                "description": "«Vigencia» es el año del periodo (filtro por año en el "
+                "dashboard). Tip: incluya en el nombre los meses del periodo "
                 "(p.ej. 'Enero - Febrero - Marzo') para que el "
                 "diligenciamiento de subindicadores mensuales muestre "
                 "solo esos meses. Desactivar un periodo oculta sus "
@@ -294,20 +293,20 @@ class PeriodoAdmin(ModelAdmin):
 
 @admin.register(Evaluacion)
 class EvaluacionAdmin(ModelAdmin):
-    list_display = ("periodo", "dependencia", "modelo_evaluacion", "creado_en")
-    list_filter = ("periodo", "dependencia", "modelo_evaluacion")
+    list_display = ("periodo", "dependencia", "categoria", "modelo_evaluacion", "creado_en")
+    list_filter = ("periodo", "categoria", "dependencia", "modelo_evaluacion")
     search_fields = (
         "periodo__nombre",
         "dependencia__nombre",
         "modelo_evaluacion__nombre",
     )
-    autocomplete_fields = ("periodo", "dependencia", "modelo_evaluacion")
+    autocomplete_fields = ("periodo", "dependencia", "categoria", "modelo_evaluacion")
     readonly_fields = ("creado_en", "actualizado_en")
     inlines = [EvaluacionResultadoInline]
     fieldsets = (
         (
             "Identificacion",
-            {"fields": ("periodo", "dependencia", "modelo_evaluacion")},
+            {"fields": ("periodo", "dependencia", "categoria", "modelo_evaluacion")},
         ),
         (
             "Auditoria",

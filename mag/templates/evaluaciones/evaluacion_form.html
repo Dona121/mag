@@ -43,6 +43,18 @@
             </small>
         </div>
 
+        <div class="campo">
+            <label for="{{ form.categoria.id_for_label }}">Categoría</label>
+            {{ form.categoria }}
+            {% if form.categoria.errors %}
+                <small style="color:var(--rojo);">{{ form.categoria.errors|join:", " }}</small>
+            {% endif %}
+            <small style="color:var(--gris-medio);">
+                Clasificación de la dependencia para esta evaluación; queda fija en el
+                registro (no cambia aunque luego se reclasifique la dependencia).
+            </small>
+        </div>
+
         <div class="form-actions">
             <button class="btn btn-primario" type="submit">Crear y diligenciar</button>
             <a class="btn btn-borde" href="{% url 'contenido:evaluacion_list' %}">Cancelar</a>

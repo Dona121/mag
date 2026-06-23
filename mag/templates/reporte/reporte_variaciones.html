@@ -20,6 +20,15 @@
           {% for c in categorias %}<option value="{{ c.pk }}" {% if sel_categoria and c.pk == sel_categoria.pk %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select></div>
       {% endif %}
+      <div class="d-f"><label for="f-modelo">Versión del modelo</label>
+        <select id="f-modelo" name="modelo" onchange="this.form.submit()">
+          {% for m in modelos %}<option value="{{ m.pk }}" {% if sel_modelo and m.pk == sel_modelo.pk %}selected{% endif %}>{{ m }} · v{{ m.version }}{% if m.activo %} ·activo{% endif %}</option>{% endfor %}
+        </select></div>
+      <div class="d-f"><label for="f-vigencia">Vigencia (año)</label>
+        <select id="f-vigencia" name="vigencia" onchange="this.form.submit()" {% if not vigencias %}disabled{% endif %}>
+          <option value="">Todas</option>
+          {% for v in vigencias %}<option value="{{ v }}" {% if sel_vigencia and v == sel_vigencia %}selected{% endif %}>{{ v }}</option>{% endfor %}
+        </select></div>
       <div class="d-f"><label for="f-pilar">Indicador (pilar)</label>
         <select id="f-pilar" name="pilar" onchange="this.form.submit()" {% if not pilares_disp %}disabled{% endif %}>
           <option value="">Todos</option>

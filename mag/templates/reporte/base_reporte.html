@@ -241,6 +241,8 @@ body.r-body{
     </div>
     <div class="meta">
       <div><span class="k">Categoría</span> · {{ categoria|default:"—" }}</div>
+      {% if modelo %}<div><span class="k">Versión</span> · {{ modelo }} v{{ modelo.version }}</div>{% endif %}
+      {% if vigencia %}<div><span class="k">Vigencia</span> · {{ vigencia }}</div>{% endif %}
       {% if periodo_actual %}<div><span class="k">Periodo</span> · {{ periodo_actual }}</div>{% endif %}
       {% if periodo_anterior %}<div><span class="k">Comparado con</span> · {{ periodo_anterior }}</div>{% endif %}
       {% block footer_extra %}{% endblock %}

@@ -38,7 +38,6 @@ class ModeloEvaluacion(Fechas):
         return f"{self.nombre}"
 
 class Dependencia(Fechas):
-    categoria = models.ForeignKey(Categoria,on_delete=models.CASCADE, null=True,blank=False)
     nombre = models.CharField(max_length=150, verbose_name="Dependencia")
 
     class Meta:
@@ -175,6 +174,7 @@ class Criterio(Fechas):
 
 class Periodo(Fechas):
     orden = models.IntegerField(null=True, verbose_name="Orden")
+    vigencia = models.PositiveIntegerField(null=True,blank=False)
     nombre = models.CharField(max_length=100, verbose_name="Periodo")
     umbral = models.DecimalField(max_digits=4,decimal_places=2, null=True, blank=False)
     activo = models.BooleanField(default=True)
@@ -198,6 +198,7 @@ class Evaluacion(Fechas):
     modelo_evaluacion = models.ForeignKey(
         ModeloEvaluacion, on_delete=models.CASCADE, verbose_name="Modelo Evaluación"
     )
+    categoria = models.ForeignKey(Categoria,on_delete=models.CASCADE, null=True,blank=False)
 
     class Meta:
         verbose_name = "Evaluacion"
