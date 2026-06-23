@@ -78,7 +78,7 @@ python manage.py runserver
 | `ALLOWED_HOSTS` | Hosts permitidos (coma) | `localhost,127.0.0.1` |
 | `DATABASE_URL` | Postgres (si se omite, usa SQLite local) | `postgres://user:pass@host:5432/db` |
 
-> ⚠️ El `.env` contiene secretos: está en `.gitignore` y **no debe versionarse**.
+> El `.env` contiene secretos: está en `.gitignore` y **no debe versionarse**.
 
 ### Estáticos (punto crítico)
 
