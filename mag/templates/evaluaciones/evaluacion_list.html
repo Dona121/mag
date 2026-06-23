@@ -1,0 +1,92 @@
+{% extends "base/base.html" %}
+{% block titulo %}Evaluaciones{% endblock %}
+
+{% block estilos_extra %}
+/* Semaforo del resultado ponderado */
+.semaforo {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: .3px;
+    min-width: 70px;
+    text-align: center;
+}
+.semaforo-verde {
+    background: #d9f0e0;
+    color: #0a5c22;
+    border: 1px solid rgba(16,157,57,.30);
+}
+.semaforo-rojo {
+    background: #fde2e4;
+    color: #9a1f27;
+    border: 1px solid rgba(217,42,52,.25);
+}
+.semaforo-pendiente {
+    background: var(--gris-claro);
+    color: var(--gris-medio);
+    border: 1px dashed var(--gris-medio);
+}
+{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>Evaluaciones</h1>
+    <span class="lead">Listado de evaluaciones registradas por periodo y dependencia</span>
+</div>
+
+{% if not es_evaluador %}
+<div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+    <a class="btn btn-primario" href="{% url 'contenido:evaluacion_create' %}">+ Nueva evaluación</a>
+</div>
+{% endif %}
+
+<div class="card" style="padding:0;">
+    <table class="std">
+        <thead>
+            <tr>
+                <th>Periodo</th>
+                <th>Dependencia</th>
+                <th>Modelo</th>
+                <th style="width:140px;">Resultado</th>
+                <th style="width:200px;">Creada</th>
+                <th style="width:1%; white-space:nowrap;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in evaluaciones %}
+            <tr>
+                <td><strong>{{ e.periodo }}</strong></td>
+                <td>{{ e.dependencia }}</td>
+                <td><span class="badge badge-azul">{{ e.modelo_evaluacion }}</span></td>
+                <td>
+                    {% if e.suma_ponderacion %}
+                        {% if e.suma_ponderacion >= 60 %}
+                            <span class="semaforo semaforo-verde">{{ e.suma_ponderacion|floatformat:2 }}</span>
+                        {% else %}
+                            <span class="semaforo semaforo-rojo">{{ e.suma_ponderacion|floatformat:2 }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="semaforo semaforo-pendiente">Sin diligenciar</span>
+                    {% endif %}
+                </td>
+                <td>{{ e.creado_en|date:"d M Y, H:i" }}</td>
+                <td>
+                    <a class="btn btn-sm btn-primario"
+                       href="{% url 'contenido:evaluacion_diligenciar' e.pk %}">
+                        Diligenciar
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align:center; padding:30px; color:var(--gris-medio);">
+                    Aun no hay evaluaciones registradas.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

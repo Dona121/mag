@@ -1,0 +1,49 @@
+{% extends "base/base.html" %}
+{% block titulo %}{% if object %}Editar modelo{% else %}Nuevo modelo{% endif %}{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>{% if object %}Editar modelo de evaluación{% else %}Nuevo modelo de evaluación{% endif %}</h1>
+</div>
+
+<div class="card" style="max-width:640px;">
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <ul class="mensajes">
+                {% for e in form.non_field_errors %}<li class="error">{{ e }}</li>{% endfor %}
+            </ul>
+        {% endif %}
+
+        <div class="campo">
+            <label for="{{ form.nombre.id_for_label }}">Nombre del modelo</label>
+            {{ form.nombre }}
+            {% if form.nombre.errors %}
+                <small style="color:var(--rojo);">{{ form.nombre.errors|join:", " }}</small>
+            {% endif %}
+        </div>
+
+        <div class="campo">
+            <label for="{{ form.version.id_for_label }}">Versión</label>
+            {{ form.version }}
+            {% if form.version.errors %}
+                <small style="color:var(--rojo);">{{ form.version.errors|join:", " }}</small>
+            {% endif %}
+        </div>
+
+        <div class="campo" style="flex-direction:row; align-items:center; gap:8px;">
+            {{ form.activo }}
+            <label for="{{ form.activo.id_for_label }}" style="text-transform:none;">
+                Activar este modelo
+            </label>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primario">{% if object %}Actualizar{% else %}Guardar{% endif %} modelo</button>
+            <a class="btn btn-borde"
+               href="{% if object %}{% url 'contenido:modelo_detalle' object.pk %}{% else %}{% url 'contenido:modelo_list' %}{% endif %}">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

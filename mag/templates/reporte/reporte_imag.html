@@ -1,0 +1,150 @@
+{% extends base_template|default:"reporte/base_reporte.html" %}
+{% load static l10n %}
+{% block titulo %}IMAG{% endblock %}
+
+{% block topmeta %}
+  {% if periodo_actual %}<span class="d-chip">Periodo <strong>{{ periodo_actual }}</strong></span>{% endif %}
+  {% if periodo_anterior %}<span class="d-chip">vs <strong>{{ periodo_anterior }}</strong></span>{% endif %}
+{% endblock %}
+
+{% block footer_extra %}{% if sel_pilar %}<div><span class="k">Pilar</span> · {{ sel_pilar }}</div>{% endif %}{% endblock %}
+
+{% block toolbar %}
+{% if modelos %}
+<div class="d-toolbar">
+  <div class="r-wrap">
+    <form method="get" class="d-filtros">
+      {% if modelos|length > 1 %}
+      <div class="d-f"><label for="f-modelo">Modelo</label>
+        <select id="f-modelo" name="modelo" onchange="this.form.submit()">
+          {% for m in modelos %}<option value="{{ m.pk }}" {% if sel_modelo and m.pk == sel_modelo.pk %}selected{% endif %}>{{ m }}{% if m.activo %} ·activo{% endif %}</option>{% endfor %}
+        </select></div>
+      {% endif %}
+      <div class="d-f"><label for="f-periodo">Periodo</label>
+        <select id="f-periodo" name="periodo" onchange="this.form.submit()" {% if not periodos %}disabled{% endif %}>
+          {% for pp in periodos %}<option value="{{ pp.pk }}" {% if sel_periodo and pp.pk == sel_periodo.pk %}selected{% endif %}>{{ pp }}</option>{% empty %}<option>— sin datos —</option>{% endfor %}
+        </select></div>
+      <div class="d-f"><label for="f-comparar">Comparar con</label>
+        <select id="f-comparar" name="comparar" onchange="this.form.submit()" {% if not periodos %}disabled{% endif %}>
+          <option value="0" {% if sel_comparar_none %}selected{% endif %}>Ninguno</option>
+          {% for pp in periodos %}<option value="{{ pp.pk }}" {% if sel_comparar and pp.pk == sel_comparar.pk %}selected{% endif %}>{{ pp }}</option>{% endfor %}
+        </select></div>
+      <div class="d-f"><label for="f-pilar">Indicador (pilar)</label>
+        <select id="f-pilar" name="pilar" onchange="this.form.submit()" {% if not pilares_disp %}disabled{% endif %}>
+          <option value="">Todos</option>
+          {% for p in pilares_disp %}<option value="{{ p.pk }}" {% if sel_pilar and p.pk == sel_pilar.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select></div>
+      <noscript><button type="submit" class="d-btn">Aplicar</button></noscript>
+      <a class="d-clear" href="{% url url_reset %}">Restablecer</a>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+{% if vacio %}
+<main class="d-aviso">
+  <h2>No hay resultados para esta selección</h2>
+  <p>{% if not modelos %}Aún no se ha creado ningún modelo de evaluación.{% elif not periodos %}{% if interno %}Aún no hay periodos con evaluaciones para este modelo.{% else %}Aún no hay periodos publicados para este modelo. Los resultados aparecen cuando el periodo se marca como público.{% endif %}{% else %}Ajusta los filtros.{% endif %}</p>
+</main>
+{% else %}
+<main class="d-main">
+  <div class="r-wrap">
+
+    <p class="d-narr">
+      Durante el periodo <b>{{ periodo_actual }}</b> el puntaje de IMAG fue
+      <b>{{ imag_pct|floatformat:2 }}%</b>{% if imag_var != None %}, una variación de
+      <b>{{ imag_var|floatformat:2 }}</b> puntos respecto al periodo anterior ({{ periodo_anterior }}){% endif %}.
+    </p>
+
+    <section class="d-section d-kpis3">
+      <div class="d-card d-kpi {% if imag_var_signo == 'pos' %}d-kpi--best{% elif imag_var_signo == 'neg' %}d-kpi--worst{% endif %}">
+        <span class="lab">Puntaje IMAG · Último periodo</span>
+        <span class="val r-num delta-{{ imag_var_signo|default:'cero' }}">
+          {% if imag_var_signo == 'pos' %}▲{% elif imag_var_signo == 'neg' %}▼{% endif %}{{ imag_pct|floatformat:2 }}%
+        </span>
+        <span class="foot">{{ periodo_actual }}{% if sel_pilar %} · {{ sel_pilar }}{% endif %}</span>
+      </div>
+      <div class="d-card d-kpi">
+        <span class="lab">Puntaje IMAG · Periodo anterior</span>
+        <span class="val r-num">{% if imag_ant_pct != None %}{{ imag_ant_pct|floatformat:2 }}%{% else %}—{% endif %}</span>
+        <span class="foot">{% if periodo_anterior %}{{ periodo_anterior }}{% else %}Sin comparación{% endif %}</span>
+      </div>
+      <div class="d-card d-kpi {% if imag_var_signo == 'pos' %}d-kpi--best{% elif imag_var_signo == 'neg' %}d-kpi--worst{% endif %}">
+        <span class="lab">Variación IMAG</span>
+        <span class="val r-num delta-{{ imag_var_signo|default:'cero' }}">
+          {% if imag_var != None %}{% if imag_var_signo == 'pos' %}▲{% elif imag_var_signo == 'neg' %}▼{% endif %}{{ imag_var|floatformat:2 }}{% else %}—{% endif %}
+        </span>
+        <span class="foot">puntos vs. periodo anterior</span>
+      </div>
+    </section>
+
+    <section class="d-section d-cols">
+      <div class="d-card js-charts">
+        <p class="d-card-h"><span>Evolución de desempeño por indicador</span><span class="tag">% cumplimiento</span></p>
+        <div class="r-canvas-h" style="height:330px;"><canvas id="chartEvol"></canvas></div>
+      </div>
+
+      <div class="d-card">
+        <p class="d-card-h"><span>Desempeño por indicador</span>{% if sel_pilar %}<span class="tag">Filtrado</span>{% endif %}</p>
+        <div class="d-table-wrap">
+          <table class="d-table">
+            <thead><tr>
+              <th>Indicador (pilar)</th>
+              <th class="num">Periodo anterior</th>
+              <th class="num">Último periodo</th>
+            </tr></thead>
+            <tbody>
+              {% for p in pilares_tabla %}
+              <tr>
+                <td class="dep">{{ p.nombre }}</td>
+                <td>{% if p.ant != None %}<span class="d-cell" style="background:rgba(16,157,57,{{ p.ant_a|unlocalize }})">{{ p.ant|floatformat:2 }}%</span>{% else %}<span class="d-cell">—</span>{% endif %}</td>
+                <td><span class="d-cell" style="background:rgba(16,157,57,{{ p.ult_a|unlocalize }})">{{ p.ult|floatformat:2 }}%</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+{% endif %}
+{% endblock %}
+
+{% block data %}{% if not vacio %}{{ payload|json_script:"reporteData" }}{% endif %}{% endblock %}
+
+{% block scripts %}
+{% if not vacio %}
+<script>
+window.reporteCharts = function(){
+  if(window.__evolDone || typeof Chart==='undefined') return;
+  var el=document.getElementById('chartEvol'); if(!el) return;
+  var DATA=JSON.parse(document.getElementById('reporteData').textContent);
+  var labels=DATA.labels||[], pilares=DATA.pilares||[];
+  if(!labels.length || !pilares.length){ window.__evolDone=true; return; }
+  window.__evolDone=true;
+  var pal=['#109d39','#0b72ab','#ffa700','#d92a34','#d88c16','#0e4d2a','#1754ab','#e68878'];
+  new Chart(el,{type:'line',
+    data:{labels:labels, datasets:pilares.map(function(p,i){
+      var peso=p.peso||0;
+      return {label:p.nombre,
+        data:(p.data||[]).map(function(v){ return (v===null||!peso)?null:(v/peso*100); }),
+        borderColor:pal[i%pal.length], backgroundColor:pal[i%pal.length],
+        borderWidth:2.5, tension:.3, pointRadius:3, spanGaps:true};
+    })},
+    options:{responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index', intersect:false},
+      plugins:{legend:{position:'bottom', labels:{boxWidth:12, font:{family:'Montserrat'}}},
+        tooltip:{backgroundColor:'#0e4d2a', padding:10,
+          callbacks:{label:function(c){ return c.dataset.label+': '+c.parsed.y.toFixed(2)+'%'; }}}},
+      scales:{y:{beginAtZero:true, max:100, grid:{color:'rgba(14,77,42,.07)'},
+          ticks:{color:'#686868', callback:function(v){ return v+'%'; }}},
+        x:{grid:{display:false}, ticks:{color:'#686868', maxRotation:0, autoSkip:true}}}}
+  });
+};
+</script>
+{% endif %}
+{% endblock %}

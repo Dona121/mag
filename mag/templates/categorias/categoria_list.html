@@ -1,0 +1,43 @@
+{% extends "base/base.html" %}
+{% block titulo %}{{ cfg.plural }}{% endblock %}
+{% block breadcrumb %}{{ cfg.plural }}{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>{{ cfg.plural }}</h1>
+    <span class="lead">Catálogo de nombres reutilizables para {{ cfg.singular }}</span>
+</div>
+
+<div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+    <a class="btn btn-primario" href="{% url 'contenido:categoria_create' tipo %}">+ Nueva {{ cfg.singular }}</a>
+</div>
+
+<div class="card" style="padding:0;">
+    <table class="std">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th style="width:160px;">En uso</th>
+                <th style="width:1%; white-space:nowrap;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cat in categorias %}
+            <tr>
+                <td><strong>{{ cat.nombre }}</strong></td>
+                <td>{{ cat.n_uso }} vez{{ cat.n_uso|pluralize:"es" }}</td>
+                <td>
+                    <a class="btn btn-sm btn-borde" href="{% url 'contenido:categoria_editar' tipo cat.pk %}">Editar</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3" style="text-align:center; padding:30px; color:var(--gris-medio);">
+                    Aún no hay categorías. Crea la primera con el botón «+ Nueva».
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

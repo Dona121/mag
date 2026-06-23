@@ -1,0 +1,41 @@
+{% extends "base/base.html" %}
+{% block titulo %}{% if editando %}Editar criterio{% else %}Nuevo criterio{% endif %}{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>{% if editando %}Editar criterio{% else %}Nuevo criterio{% endif %}</h1>
+    <span class="lead">Subindicador: <strong>{{ subindicador }}</strong></span>
+</div>
+
+<div class="card" style="max-width:680px;">
+    <p style="color: var(--gris-medio); font-size: 13px; margin-top:0;">
+        Los criterios funcionan únicamente como <em>guía descriptiva</em> (por ejemplo
+        rangos de puntuación). La evaluación real se realiza a nivel de subindicador.
+    </p>
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="campo">
+            <label for="orden">Orden (opcional)</label>
+            <input type="number" id="orden" name="orden" placeholder="Ej.: 1, 2, 3..." value="{{ criterio.orden|default:'' }}">
+        </div>
+        <div class="campo">
+            <label for="nombre">Nombre del criterio</label>
+            <textarea id="nombre" name="nombre" rows="3"
+                      placeholder="Ej.: Sobresaliente — descripción del criterio" required>{{ criterio.nombre|default:'' }}</textarea>
+        </div>
+        <div class="campo">
+            <label for="rango">Rango / descripción</label>
+            <input type="text" id="rango" name="rango" maxlength="255"
+                   placeholder="Ej.: 91 a 100 — Cumple en su totalidad" value="{{ criterio.rango|default:'' }}" required>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primario" type="submit">{% if editando %}Actualizar{% else %}Guardar{% endif %} criterio</button>
+            <a class="btn btn-borde"
+               href="{% url 'contenido:modelo_detalle' subindicador.indicador.pilar.modelo_evaluacion_id %}">
+                Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

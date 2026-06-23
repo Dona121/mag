@@ -1,0 +1,128 @@
+{% extends base_template|default:"reporte/base_reporte.html" %}
+{% load static l10n %}
+{% block titulo %}Ranking{% endblock %}
+
+{% block topmeta %}
+  {% if periodo_actual %}<span class="d-chip">Periodo <strong>{{ periodo_actual }}</strong></span>{% endif %}
+  {% if not vacio %}<span class="d-chip"><strong>{{ filas|length }}</strong> dependencias</span>{% endif %}
+{% endblock %}
+
+{% block footer_extra %}{% if sel_pilar %}<div><span class="k">Indicador</span> · {{ sel_pilar }}</div>{% endif %}{% endblock %}
+
+{% block toolbar %}
+{% if modelos %}
+<div class="d-toolbar">
+  <div class="r-wrap">
+    <form method="get" class="d-filtros">
+      <input type="hidden" name="modelo" value="{% if sel_modelo %}{{ sel_modelo.pk }}{% endif %}">
+      <div class="d-f"><label for="f-periodo">Periodo</label>
+        <select id="f-periodo" name="periodo" onchange="this.form.submit()" {% if not periodos %}disabled{% endif %}>
+          {% for pp in periodos %}<option value="{{ pp.pk }}" {% if sel_periodo and pp.pk == sel_periodo.pk %}selected{% endif %}>{{ pp }}</option>{% empty %}<option>— sin datos —</option>{% endfor %}
+        </select></div>
+      <div class="d-f"><label for="f-pilar">Indicador (pilar)</label>
+        <select id="f-pilar" name="pilar" onchange="this.form.submit()" {% if not pilares_disp %}disabled{% endif %}>
+          <option value="">Todos</option>
+          {% for p in pilares_disp %}<option value="{{ p.pk }}" {% if sel_pilar and p.pk == sel_pilar.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select></div>
+      <noscript><button type="submit" class="d-btn">Aplicar</button></noscript>
+      <a class="d-clear" href="{% url url_reset %}">Restablecer</a>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+{% if modelos|length > 1 %}
+<div class="d-cat">
+  <div class="r-wrap">
+    <nav class="d-cat-tabs">
+      {% for m in modelos %}
+      <a href="?modelo={{ m.pk }}" class="{% if sel_modelo and m.pk == sel_modelo.pk %}activo{% endif %}">{{ m }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+</div>
+{% endif %}
+
+{% if vacio %}
+<main class="d-aviso">
+  <h2>No hay resultados para esta categoría</h2>
+  <p>{% if not modelos %}Aún no se ha creado ningún modelo de evaluación.{% elif not periodos %}{% if interno %}Aún no hay periodos con evaluaciones para este modelo.{% else %}Aún no hay periodos publicados para este modelo. Los resultados aparecen cuando el periodo se marca como público.{% endif %}{% else %}Ajusta los filtros.{% endif %}</p>
+</main>
+{% else %}
+<main class="d-main">
+  <div class="r-wrap">
+
+    {% if mejor %}
+    <p class="d-narr">
+      Durante <b>{{ periodo_actual }}</b>, para <b>{{ sel_modelo }}</b>, la dependencia con mejor puntaje fue
+      <b>{{ mejor.dependencia }}</b> ({{ mejor.total|floatformat:2 }}%).
+    </p>
+    {% endif %}
+
+    <section class="d-section d-rank-cols">
+      <div class="d-card js-charts">
+        <p class="d-card-h"><span>Ranking por dependencia · {{ sel_modelo }}</span><span class="tag">objetivo {{ objetivo|floatformat:0 }}%</span></p>
+        <div class="d-chartrank"><canvas id="chartRank"></canvas></div>
+      </div>
+
+      <div class="d-card">
+        <p class="d-card-h"><span>Dependencia · último periodo</span></p>
+        <div class="d-table-wrap">
+          <table class="d-table">
+            <thead><tr><th style="width:30px;">#</th><th>Dependencia</th><th class="num">Puntaje</th></tr></thead>
+            <tbody>
+              {% for x in filas %}
+              <tr>
+                <td style="color:var(--gris-medio); font-weight:700;">{{ x.pos }}</td>
+                <td class="dep">{{ x.dependencia }}</td>
+                <td><span class="d-cell" style="background:rgba(11,114,171,{{ x.a|unlocalize }})">{{ x.total|floatformat:2 }}%</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+{% endif %}
+{% endblock %}
+
+{% block data %}{% if not vacio %}{{ payload|json_script:"reporteData" }}{% endif %}{% endblock %}
+
+{% block scripts %}
+{% if not vacio %}
+<script>
+window.reporteCharts = function(){
+  if(window.__rankDone || typeof Chart==='undefined') return;
+  var el=document.getElementById('chartRank'); if(!el) return;
+  var DATA=JSON.parse(document.getElementById('reporteData').textContent);
+  var rows=DATA.ranking||[]; if(!rows.length){ window.__rankDone=true; return; }
+  window.__rankDone=true;
+  var labels=rows.map(function(r){ return r.dependencia; });
+  var vals=rows.map(function(r){ return r.total; });
+  var colors=rows.map(function(r){ return r.dependencia===DATA.mejor ? '#109d39' : '#5aa9d0'; });
+  var obj=DATA.objetivo||0;
+  // Plugin: línea de objetivo
+  var objLine={id:'objLine', afterDraw:function(ch){
+    var y=ch.scales.y.getPixelForValue(obj), a=ch.chartArea, ctx=ch.ctx;
+    ctx.save(); ctx.strokeStyle='#d92a34'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(a.left,y); ctx.lineTo(a.right,y); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle='#d92a34'; ctx.font='700 11px Montserrat'; ctx.textAlign='right';
+    ctx.fillText('Objetivo '+obj+'%', a.right-4, y-5); ctx.restore();
+  }};
+  new Chart(el,{type:'bar', plugins:[objLine],
+    data:{labels:labels, datasets:[{data:vals, backgroundColor:colors, borderRadius:5, maxBarThickness:46}]},
+    options:{responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{backgroundColor:'#0e4d2a', padding:10,
+        callbacks:{label:function(c){ return c.parsed.y.toFixed(2)+'%'; }}}},
+      scales:{y:{beginAtZero:true, max:100, grid:{color:'rgba(14,77,42,.07)'}, ticks:{color:'#686868', callback:function(v){ return v+'%'; }}},
+        x:{grid:{display:false}, ticks:{color:'#5a595d', font:{family:'Montserrat', size:11}, maxRotation:35, minRotation:0, autoSkip:false}}}}
+  });
+};
+</script>
+{% endif %}
+{% endblock %}

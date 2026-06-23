@@ -1,0 +1,56 @@
+{% comment %}
+Validacion de captura de decimales: acepta UN solo separador (coma o punto).
+Se aplica a los inputs con clase js-decimal. Muestra un mensaje inline y bloquea
+el envio del formulario si hay un separador invalido. Tambien expone
+window.parseNum() para leer numeros con coma o punto.
+{% endcomment %}
+<script>
+(function () {
+  window.parseNum = function (s) {
+    if (s === null || s === undefined) return NaN;
+    return parseFloat(String(s).replace(",", "."));
+  };
+
+  function mensajeError(valor) {
+    if (valor === "") return "";
+    var coma = (valor.match(/,/g) || []).length;
+    var punto = (valor.match(/\./g) || []).length;
+    if (coma && punto) return "Usa un solo separador decimal (coma o punto), no ambos.";
+    if (coma > 1 || punto > 1) return "Solo se permite un separador decimal.";
+    if (!/^\d+([.,]\d+)?$/.test(valor)) return "Ingresa solo números con un separador decimal.";
+    return "";
+  }
+
+  function validar(inp) {
+    var err = mensajeError((inp.value || "").trim());
+    var msg = inp.parentNode.querySelector(".campo-error");
+    if (!msg) {
+      msg = document.createElement("small");
+      msg.className = "campo-error";
+      inp.parentNode.appendChild(msg);
+    }
+    msg.textContent = err;
+    inp.classList.toggle("input-invalido", !!err);
+    return !err;
+  }
+
+  var inputs = Array.prototype.slice.call(document.querySelectorAll(".js-decimal"));
+  inputs.forEach(function (inp) {
+    inp.addEventListener("input", function () { validar(inp); });
+    inp.addEventListener("blur", function () { validar(inp); });
+    var form = inp.closest("form");
+    if (form && !form.__decimalBound) {
+      form.__decimalBound = true;
+      form.addEventListener("submit", function (e) {
+        var ok = true;
+        form.querySelectorAll(".js-decimal").forEach(function (i) { if (!validar(i)) ok = false; });
+        if (!ok) {
+          e.preventDefault();
+          var first = form.querySelector(".input-invalido");
+          if (first) first.focus();
+        }
+      });
+    }
+  });
+})();
+</script>

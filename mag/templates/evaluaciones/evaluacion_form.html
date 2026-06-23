@@ -1,0 +1,52 @@
+{% extends "base/base.html" %}
+{% block titulo %}Nueva evaluación{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>Nueva evaluación</h1>
+    <span class="lead">El modelo se asigna automáticamente según la dependencia</span>
+</div>
+
+<div class="card" style="max-width:680px;">
+    <p style="margin-top:0; color:var(--gris-medio); font-size:13px;">
+        Al crear una evaluación, el sistema toma de manera automática el
+        <strong>modelo de evaluación activo</strong> asociado a la dependencia
+        seleccionada. Sólo se permite una evaluación por combinación de
+        <em>periodo + dependencia</em>.
+    </p>
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <ul class="mensajes">
+                {% for e in form.non_field_errors %}<li class="error">{{ e }}</li>{% endfor %}
+            </ul>
+        {% endif %}
+
+        <div class="campo">
+            <label for="{{ form.periodo.id_for_label }}">Periodo</label>
+            {{ form.periodo }}
+            {% if form.periodo.errors %}
+                <small style="color:var(--rojo);">{{ form.periodo.errors|join:", " }}</small>
+            {% endif %}
+        </div>
+
+        <div class="campo">
+            <label for="{{ form.dependencia.id_for_label }}">Dependencia</label>
+            {{ form.dependencia }}
+            {% if form.dependencia.errors %}
+                <small style="color:var(--rojo);">{{ form.dependencia.errors|join:", " }}</small>
+            {% endif %}
+            <small style="color:var(--gris-medio);">
+                Sólo aparecen dependencias con un modelo de evaluación activo asignado.
+            </small>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-primario" type="submit">Crear y diligenciar</button>
+            <a class="btn btn-borde" href="{% url 'contenido:evaluacion_list' %}">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

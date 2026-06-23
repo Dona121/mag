@@ -1,0 +1,130 @@
+{% extends "base/base.html" %}
+{% block titulo %}Inicio{% endblock %}
+
+{% block estilos_extra %}
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 14px;
+    align-items: stretch;
+    margin-bottom: 14px;
+}
+.dashboard-grid .card { margin-bottom: 0; }
+.accesos-flex { display: flex; flex-direction: column; gap: 8px; }
+.accesos-flex .btn { justify-content: center; }
+@media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
+
+/* Tarjeta de cuenta (login / sesion activa) */
+.cuenta-card { border-left: 4px solid var(--azul); }
+.cuenta-card.activa { border-left-color: var(--verde-primario); }
+.cuenta-card h2::before { display: none; }
+.cuenta-card .avatar {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--verde-claro);
+    color: var(--verde-superficie);
+    font-weight: 800; font-size: 15px;
+    display: grid; place-items: center;
+    flex: none;
+}
+.cuenta-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 12px;
+}
+.cuenta-header .meta { display: flex; flex-direction: column; line-height: 1.25; }
+.cuenta-header .meta strong { font-size: 14px; color: var(--gris-oscuro); }
+.cuenta-header .meta small  { font-size: 11.5px; color: var(--gris-medio); }
+{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>Modelo de Alta Gerencia</h1>
+    <span class="lead">Parametrización y registro de evaluaciones por dependencia</span>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Modelos registrados</div>
+        <div class="stat-value">{{ total_modelos }}</div>
+    </div>
+    <div class="stat-card azul">
+        <div class="stat-label">Modelos activos</div>
+        <div class="stat-value">{{ total_modelos_activos }}</div>
+    </div>
+    <div class="stat-card naranja">
+        <div class="stat-label">Dependencias</div>
+        <div class="stat-value">{{ total_dependencias }}</div>
+    </div>
+    <div class="stat-card rojo">
+        <div class="stat-label">Evaluaciones</div>
+        <div class="stat-value">{{ total_evaluaciones }}</div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="card">
+        <h2>Últimas evaluaciones</h2>
+        {% if ultimas_evaluaciones %}
+            <table class="std">
+                <thead>
+                    <tr>
+                        <th>Periodo</th>
+                        <th>Dependencia</th>
+                        <th>Modelo</th>
+                        <th style="width:1%; white-space:nowrap;">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in ultimas_evaluaciones %}
+                    <tr>
+                        <td>{{ e.periodo }}</td>
+                        <td>{{ e.dependencia }}</td>
+                        <td><span class="badge badge-azul">{{ e.modelo_evaluacion }}</span></td>
+                        <td>
+                            <a class="btn btn-sm btn-primario"
+                               href="{% url 'contenido:evaluacion_diligenciar' e.pk %}">
+                                Diligenciar
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="color: var(--gris-medio); margin: 0;">
+                Aún no hay evaluaciones registradas. Comience creando una desde el botón <em>«Nueva evaluación»</em>.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="card cuenta-card activa">
+        <h2>Sesión</h2>
+        <div class="cuenta-header">
+            <div class="avatar">{{ user.username|first|upper }}</div>
+            <div class="meta">
+                <strong>{{ user.get_full_name|default:user.username }}</strong>
+                <small>
+                    {{ user.email|default:user.username }}
+                    {% if user.is_superuser %} · administrador{% endif %}
+                </small>
+            </div>
+        </div>
+        <div class="accesos-flex">
+            <a class="btn btn-borde" href="{% url 'contenido:password_change' %}">Cambiar contraseña</a>
+            <form method="post" action="{% url 'contenido:logout' %}" style="margin:0;">
+                {% csrf_token %}
+                <button class="btn btn-peligro" type="submit" style="width:100%;">Cerrar sesión</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Accesos directos</h2>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="btn btn-primario"   href="{% url 'contenido:modelo_create' %}">+ Nuevo modelo</a>
+        <a class="btn btn-secundario" href="{% url 'contenido:evaluacion_create' %}">+ Nueva evaluación</a>
+        <a class="btn btn-borde"      href="{% url 'contenido:modelo_list' %}">Ver modelos</a>
+        <a class="btn btn-borde"      href="{% url 'contenido:evaluacion_list' %}">Ver evaluaciones</a>
+    </div>
+</div>
+{% endblock %}

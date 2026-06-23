@@ -1,0 +1,559 @@
+{% extends "base/base.html" %}
+{% load l10n %}
+{% block titulo %}Diligenciar evaluación{% endblock %}
+
+{% block estilos_extra %}
+.matriz-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.matriz-meta .meta-item {
+    background: var(--blanco);
+    border: 1px solid var(--gris-claro);
+    border-left: 4px solid var(--verde-primario);
+    padding: 10px 14px;
+    border-radius: 6px;
+}
+.matriz-meta .meta-item small {
+    display: block;
+    text-transform: uppercase;
+    font-size: 10.5px;
+    color: var(--gris-medio);
+    letter-spacing: .4px;
+    font-weight: 600;
+}
+.matriz-meta .meta-item strong {
+    display: block;
+    font-size: 15px;
+    color: var(--gris-oscuro);
+    margin-top: 2px;
+}
+
+.matriz-wrap {
+    background: var(--blanco);
+    border: 1px solid var(--gris-claro);
+    border-radius: 8px;
+    overflow: auto;
+    box-shadow: var(--sombra-suave);
+}
+
+table.matriz {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 1100px;
+}
+table.matriz thead th {
+    background: var(--verde-primario);
+    color: var(--blanco);
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: .4px;
+    font-size: 11.5px;
+    padding: 11px 10px;
+    border-right: 1px solid rgba(255,255,255,0.18);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+table.matriz thead th:last-child { border-right: none; }
+
+table.matriz td {
+    border: 1px solid var(--gris-claro);
+    vertical-align: middle;
+    padding: 8px 10px;
+    background: var(--blanco);
+}
+
+/* Pilar — celda destacada (rowspan), tono saturado */
+table.matriz td.col-pilar {
+    background: #cdebd6;
+    font-weight: 800;
+    color: #084c1c;
+    border-left: 6px solid var(--verde-primario);
+    width: 16%;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+
+/* Separador grueso entre grupos de pilar */
+table.matriz tr.fila-pilar-inicio td {
+    border-top: 3px solid var(--verde-primario);
+}
+table.matriz tbody tr:first-child.fila-pilar-inicio td {
+    border-top: 1px solid var(--gris-claro);
+}
+table.matriz tbody tr:first-child.fila-pilar-inicio td.col-pilar {
+    border-top: 1px solid var(--verde-primario);
+}
+
+/* Indicador */
+table.matriz td.col-indicador {
+    background: rgba(11,114,171,.06);
+    font-weight: 600;
+    color: var(--azul);
+    width: 18%;
+}
+
+/* Subindicador */
+table.matriz td.col-sub { color: var(--gris-oscuro); width: 22%; }
+table.matriz td.col-sub small {
+    display: block;
+    color: var(--gris-medio);
+    font-weight: 600;
+    margin-top: 2px;
+    font-size: 11px;
+}
+
+/* Tag tipo de calculo */
+.tipo-tag {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+}
+.tipo-tag.mensual { background: rgba(11,114,171,.12); color: var(--azul); }
+.tipo-tag.directo { background: rgba(16,157,57,.12); color: var(--verde-superficie); }
+
+.criterios-list {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--gris-medio);
+    line-height: 1.4;
+}
+.criterios-list span { display: block; }
+
+table.matriz td.col-puntaje, table.matriz td.col-pond {
+    text-align: center;
+    width: 110px;
+}
+table.matriz td.col-obs   { width: 18%; }
+
+/* Inputs base */
+table.matriz input[type="number"],
+table.matriz textarea {
+    width: 100%;
+    border: 1px solid var(--gris-claro);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--gris-oscuro);
+    background: var(--blanco);
+    transition: border-color .12s ease, box-shadow .12s ease;
+}
+table.matriz input[type="number"] { text-align: center; font-weight: 600; }
+table.matriz textarea { min-height: 38px; resize: vertical; }
+table.matriz input:focus, table.matriz textarea:focus {
+    outline: none;
+    border-color: var(--verde-primario);
+    box-shadow: 0 0 0 2px rgba(16,157,57,0.20);
+}
+.col-pond input { background: var(--gris-fondo); color: var(--gris-medio); }
+
+/* Grilla de meses para subindicadores tipo mensual */
+.col-puntaje.col-mensual {
+    width: auto;
+    min-width: 200px;
+    padding: 6px 8px;
+}
+.meses-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+    gap: 4px;
+}
+.mes-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+}
+.mes-cell .mes-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    text-align: center;
+    color: var(--azul);
+    background: rgba(11,114,171,.08);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+.mes-cell input {
+    padding: 4px 4px !important;
+    font-size: 12px !important;
+}
+
+/* Resaltado de fila enfocada */
+table.matriz tbody tr:hover td:not(.col-pilar):not(.col-indicador) {
+    background: #fafdfb;
+}
+table.matriz tr.fila-activa td:not(.col-pilar):not(.col-indicador) {
+    background: #f1faf3 !important;
+}
+
+/* Footer sticky con totales */
+.matriz-totales {
+    position: sticky;
+    bottom: 0;
+    background: var(--blanco);
+    border-top: 2px solid var(--verde-primario);
+    padding: 12px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.matriz-totales .totales {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.matriz-totales .pill {
+    background: var(--gris-fondo);
+    border: 1px solid var(--gris-claro);
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 12.5px;
+    color: var(--gris-oscuro);
+}
+.matriz-totales .pill strong { color: var(--verde-primario); margin-left: 6px; }
+
+.progreso {
+    flex: 1;
+    background: var(--gris-claro);
+    border-radius: 999px;
+    overflow: hidden;
+    height: 8px;
+    max-width: 280px;
+}
+.progreso > div {
+    background: var(--verde-primario);
+    height: 100%;
+    transition: width .25s ease;
+}
+
+/* --- Permisos por indicador (PerfilUsuario) --- */
+.banner-permisos {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 11px 14px; border-radius: 6px; margin-bottom: 16px;
+    font-size: 13px; border: 1px solid var(--gris-claro);
+}
+.banner-permisos.ok   { border-left: 4px solid var(--verde-primario); background: var(--verde-claro); color: var(--verde-superficie); }
+.banner-permisos.info { border-left: 4px solid var(--azul); background: rgba(11,114,171,.08); color: var(--azul); }
+.banner-permisos.warn { border-left: 4px solid var(--naranja); background: #fff5e0; color: #a36a00; }
+.banner-permisos strong { font-weight: 800; }
+
+.col-indicador .edit-tag,
+.col-indicador .lock-tag {
+    display: inline-block; margin-top: 4px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .4px; padding: 2px 7px; border-radius: 999px;
+}
+.col-indicador .edit-tag { color: var(--verde-superficie); background: var(--verde-claro); }
+.col-indicador .lock-tag { color: var(--gris-medio); background: var(--gris-claro); }
+
+/* Inputs de indicadores no asignados: solo lectura */
+table.matriz input[readonly].js-puntaje,
+table.matriz input[readonly].js-puntaje-mes,
+table.matriz textarea[readonly] {
+    background: var(--gris-fondo);
+    color: var(--gris-medio);
+    cursor: not-allowed;
+}
+table.matriz tr.fila-solo-lectura .col-sub { opacity: .85; }
+{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>Diligenciar evaluación</h1>
+    <span class="lead">Matriz tipo Excel — Pilares, indicadores y subindicadores</span>
+</div>
+
+<div class="matriz-meta">
+    <div class="meta-item">
+        <small>Periodo</small>
+        <strong>{{ evaluacion.periodo }}</strong>
+    </div>
+    <div class="meta-item">
+        <small>Dependencia</small>
+        <strong>{{ evaluacion.dependencia }}</strong>
+    </div>
+    <div class="meta-item">
+        <small>Modelo de evaluación</small>
+        <strong>{{ evaluacion.modelo_evaluacion }} (v{{ evaluacion.modelo_evaluacion.version }})</strong>
+    </div>
+    <div class="meta-item">
+        <small>Meses del periodo</small>
+        <strong>
+            {% for n, lbl in meses_aplicables %}{{ lbl }}{% if not forloop.last %} · {% endif %}{% endfor %}
+        </strong>
+    </div>
+</div>
+
+{% if usuario_es_superuser %}
+<div class="banner-permisos info">
+    <span>Diligencias como <strong>administrador</strong>: tienes habilitada toda la matriz.</span>
+</div>
+{% elif puede_editar_algo %}
+<div class="banner-permisos ok">
+    <span>Tienes <strong>{{ total_editables }}</strong> subindicador{{ total_editables|pluralize:"es" }} habilitado{{ total_editables|pluralize }} para editar, según los indicadores asignados a tu usuario. El resto de la matriz queda en <strong>solo lectura</strong>.</span>
+</div>
+{% else %}
+<div class="banner-permisos warn">
+    <span>No tienes indicadores asignados: esta evaluación es <strong>solo lectura</strong>. Si debes diligenciar algún indicador, solicita su asignación a un administrador.</span>
+</div>
+{% endif %}
+
+<form method="post" id="form-evaluacion">
+    {% csrf_token %}
+
+    <div class="matriz-wrap">
+        <table class="matriz">
+            <thead>
+                <tr>
+                    <th>Pilar</th>
+                    <th>Indicador</th>
+                    <th>Subindicador</th>
+                    <th>Puntaje (0-100)</th>
+                    <th>Ponderación</th>
+                    <th>Observaciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila_pilar in matriz %}
+                    {% with pilar=fila_pilar.pilar %}
+                    {% for fila_ind in fila_pilar.indicadores %}
+                        {% with indicador=fila_ind.indicador %}
+                        {% for sub in fila_ind.subindicadores %}
+                        <tr data-sub-id="{{ sub.pk }}"
+                            class="{% if forloop.parentloop.first and forloop.first %}fila-pilar-inicio{% endif %}{% if not sub.editable %} fila-solo-lectura{% endif %}">
+                            {% if forloop.parentloop.first and forloop.first %}
+                                <td class="col-pilar" rowspan="{{ fila_pilar.rowspan }}">
+                                    {{ pilar.nombre }}
+                                    <small style="display:block; font-weight:500; font-size:11px; opacity:.85;">
+                                        Peso {{ pilar.peso }}%
+                                    </small>
+                                </td>
+                            {% endif %}
+                            {% if forloop.first %}
+                                <td class="col-indicador" rowspan="{{ fila_ind.rowspan }}">
+                                    {{ indicador.nombre }}
+                                    <small style="display:block; font-weight:500; font-size:11px; opacity:.85;">
+                                        Peso {{ indicador.peso }}%
+                                    </small>
+                                    {% if not usuario_es_superuser %}
+                                        {% if fila_ind.editable %}
+                                            <span class="edit-tag">Editable</span>
+                                        {% else %}
+                                            <span class="lock-tag">Solo lectura</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                            <td class="col-sub">
+                                {{ sub.nombre }}
+                                <small>Peso {{ sub.peso }}%</small>
+                                {% if sub.es_mensual %}
+                                    <span class="tipo-tag mensual">Mensual</span>
+                                {% else %}
+                                    <span class="tipo-tag directo">Directo</span>
+                                {% endif %}
+                                {% if sub.criterio_set.all %}
+                                    <div class="criterios-list">
+                                        {% for c in sub.criterio_set.all %}
+                                            <span>· <strong>{{ c.nombre }}:</strong> {{ c.rango }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </td>
+
+                            {% if sub.es_mensual %}
+                                <td class="col-puntaje col-mensual">
+                                    <div class="meses-grid">
+                                        {% for mes_num, mes_label, valor in sub.meses_render %}
+                                            <label class="mes-cell">
+                                                <span class="mes-label">{{ mes_label|slice:":3" }}</span>
+                                                <input type="text" inputmode="decimal"
+                                                       name="puntaje_{{ sub.pk }}_{{ mes_num }}"
+                                                       data-sub-id="{{ sub.pk }}"
+                                                       data-peso="{{ sub.peso|unlocalize }}"
+                                                       value="{{ valor }}"
+                                                       {% if not sub.editable %}readonly tabindex="-1"{% endif %}
+                                                       class="js-puntaje-mes js-decimal">
+                                            </label>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            {% else %}
+                                <td class="col-puntaje">
+                                    <input type="text" inputmode="decimal"
+                                           name="puntaje_{{ sub.pk }}"
+                                           data-peso="{{ sub.peso|unlocalize }}"
+                                           data-target="ponderacion_{{ sub.pk }}"
+                                           value="{{ sub.puntaje_actual }}"
+                                           {% if not sub.editable %}readonly tabindex="-1"{% endif %}
+                                           class="js-puntaje js-decimal">
+                                </td>
+                            {% endif %}
+
+                            <td class="col-pond">
+                                <input type="number" step="0.01" readonly
+                                       id="ponderacion_{{ sub.pk }}"
+                                       name="ponderacion_{{ sub.pk }}"
+                                       value="{{ sub.ponderacion_actual }}">
+                            </td>
+                            <td class="col-obs">
+                                <textarea name="observaciones_{{ sub.pk }}"
+                                          {% if not sub.editable %}readonly tabindex="-1"{% endif %}
+                                          placeholder="Observaciones…">{{ sub.observaciones_actual }}</textarea>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr {% if forloop.parentloop.first %}class="fila-pilar-inicio"{% endif %}>
+                            {% if forloop.parentloop.first %}
+                                <td class="col-pilar" rowspan="1">{{ pilar.nombre }}</td>
+                            {% endif %}
+                            <td class="col-indicador">{{ indicador.nombre }}</td>
+                            <td colspan="4" style="color:var(--gris-medio); font-style:italic;">
+                                Sin subindicadores definidos.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% endwith %}
+                    {% empty %}
+                        <tr class="fila-pilar-inicio">
+                            <td class="col-pilar">{{ pilar.nombre }}</td>
+                            <td colspan="5" style="color:var(--gris-medio); font-style:italic;">
+                                Sin indicadores definidos.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    {% endwith %}
+                {% empty %}
+                    <tr>
+                        <td colspan="6" style="text-align:center; padding:30px; color:var(--gris-medio);">
+                            El modelo no tiene pilares parametrizados todavía.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="matriz-totales">
+            <div class="totales">
+                <span class="pill">Total ponderado: <strong id="total-ponderacion">0.00</strong></span>
+                <span class="pill">Subindicadores: <strong>{{ total_subindicadores }}</strong></span>
+                <div class="progreso"><div id="barra-progreso" style="width:0%"></div></div>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <a class="btn btn-borde" href="{% url 'contenido:evaluacion_list' %}">← Volver</a>
+                {% if usuario_es_superuser or puede_editar_algo %}
+                <button class="btn btn-primario" type="submit">Guardar evaluación</button>
+                {% else %}
+                <button class="btn btn-primario" type="button" disabled
+                        title="No tienes indicadores asignados">Guardar evaluación</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts_extra %}
+{% include "partials/decimal_validacion.html" %}
+<script>
+(function () {
+    const parseNum = window.parseNum || function (s) { return Number(String(s).replace(',', '.')); };
+    const totalSubs   = {{ total_subindicadores|default:0 }};
+    const totalEl     = document.getElementById('total-ponderacion');
+    const barraEl     = document.getElementById('barra-progreso');
+
+    /* Calcula y actualiza la ponderacion para un subindicador "directo" */
+    function recalcDirecto(input) {
+        const peso = parseNum(input.dataset.peso || '0');
+        const target = document.getElementById(input.dataset.target);
+        const v = parseNum(input.value);
+        if (target) {
+            target.value = !isNaN(v) ? (v * peso / 100).toFixed(2) : '';
+        }
+    }
+
+    /* Calcula la ponderacion para un subindicador "mensual" usando el
+       promedio de meses diligenciados. */
+    function recalcMensual(subId) {
+        const inputs = document.querySelectorAll(`.js-puntaje-mes[data-sub-id="${subId}"]`);
+        if (!inputs.length) return;
+        const peso = parseNum(inputs[0].dataset.peso || '0');
+        let suma = 0, n = 0;
+        inputs.forEach(i => {
+            const v = parseNum(i.value);
+            if (!isNaN(v)) { suma += v; n++; }
+        });
+        const promedio = n ? suma / n : 0;
+        const pondInput = document.getElementById('ponderacion_' + subId);
+        if (pondInput) {
+            pondInput.value = n ? (promedio * peso / 100).toFixed(2) : '';
+        }
+    }
+
+    function recalcularTotales() {
+        let suma = 0;
+        let llenas = 0;
+        document.querySelectorAll('input[id^="ponderacion_"]').forEach(p => {
+            const v = parseNum(p.value);
+            if (!isNaN(v) && v > 0) { suma += v; llenas++; }
+        });
+        totalEl.textContent = suma.toFixed(2);
+        const pct = totalSubs ? (llenas / totalSubs * 100) : 0;
+        barraEl.style.width = pct.toFixed(1) + '%';
+    }
+
+    /* Subindicadores DIRECTOS */
+    document.querySelectorAll('.js-puntaje').forEach(inp => {
+        inp.addEventListener('focus', () => inp.closest('tr')?.classList.add('fila-activa'));
+        inp.addEventListener('blur',  () => inp.closest('tr')?.classList.remove('fila-activa'));
+        inp.addEventListener('input', () => {
+            let v = parseNum(inp.value);
+            if (!isNaN(v)) {
+                if (v < 0)   inp.value = 0;
+                if (v > 100) inp.value = 100;
+            }
+            recalcDirecto(inp);
+            recalcularTotales();
+        });
+        recalcDirecto(inp);
+    });
+
+    /* Subindicadores MENSUALES */
+    document.querySelectorAll('.js-puntaje-mes').forEach(inp => {
+        inp.addEventListener('focus', () => inp.closest('tr')?.classList.add('fila-activa'));
+        inp.addEventListener('blur',  () => inp.closest('tr')?.classList.remove('fila-activa'));
+        inp.addEventListener('input', () => {
+            let v = parseNum(inp.value);
+            if (!isNaN(v)) {
+                if (v < 0)   inp.value = 0;
+                if (v > 100) inp.value = 100;
+            }
+            recalcMensual(inp.dataset.subId);
+            recalcularTotales();
+        });
+    });
+    /* Calculo inicial de mensuales */
+    new Set(
+        Array.from(document.querySelectorAll('.js-puntaje-mes'))
+            .map(i => i.dataset.subId)
+    ).forEach(recalcMensual);
+
+    recalcularTotales();
+})();
+</script>
+{% endblock %}

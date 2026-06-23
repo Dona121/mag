@@ -1,0 +1,45 @@
+{% extends "base/base.html" %}
+{% load l10n %}
+{% block titulo %}{% if editando %}Editar indicador{% else %}Nuevo indicador{% endif %}{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>{% if editando %}Editar indicador{% else %}Nuevo indicador{% endif %}</h1>
+    <span class="lead">Pilar: <strong>{{ pilar }}</strong> · Modelo: {{ pilar.modelo_evaluacion }}</span>
+</div>
+
+<div class="card" style="max-width:640px;">
+    <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="campo">
+            <label for="orden">Orden (opcional)</label>
+            <input type="number" id="orden" name="orden" placeholder="Ej.: 1, 2, 3..." value="{{ indicador.orden|default:'' }}">
+        </div>
+        <div class="campo">
+            <label for="nombre">Categoría del indicador</label>
+            {% if categorias %}
+                <select id="nombre" name="nombre" required>
+                    <option value="">— Seleccione —</option>
+                    {% for cat in categorias %}
+                        <option value="{{ cat.pk }}" {% if indicador.nombre_id == cat.pk %}selected{% endif %}>{{ cat.nombre }}</option>
+                    {% endfor %}
+                </select>
+            {% else %}
+                <p style="color:var(--rojo); font-size:13px; margin:0;">
+                    No hay categorías de indicador. Créalas primero en el
+                    <a href="/admin/contenido/indicadorcategoria/add/" target="_blank" rel="noopener">panel de administración</a>.
+                </p>
+            {% endif %}
+        </div>
+        <div class="campo">
+            <label for="peso">Peso (%)</label>
+            <input type="text" inputmode="decimal" id="peso" name="peso" value="{{ indicador.peso|default:'0'|unlocalize }}" class="js-decimal" placeholder="Ej.: 12.5" required>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primario" type="submit">{% if editando %}Actualizar{% else %}Guardar{% endif %} indicador</button>
+            <a class="btn btn-borde" href="{% url 'contenido:modelo_detalle' pilar.modelo_evaluacion_id %}">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% include "partials/decimal_validacion.html" %}
+{% endblock %}

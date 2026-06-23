@@ -1,0 +1,82 @@
+# ───────────────────────────── Secretos y entorno ─────────────────────────────
+# NUNCA versionar: contienen SECRET_KEY y credenciales de la BD (Supabase).
+.env
+*.env
+!.env.example
+mag/.env
+
+# ───────────────────────────── Python ─────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# ───────────────────────────── Entornos virtuales ─────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ───────────────────────────── Django ─────────────────────────────
+# Base de datos local de desarrollo.
+*.sqlite3
+db.sqlite3
+mag/db.sqlite3
+
+# Archivos recolectados por collectstatic (se regeneran en cada despliegue).
+staticfiles/
+mag/staticfiles/
+
+# Media subida por usuarios.
+media/
+mag/media/
+
+# Logs y migraciones temporales / locales.
+*.log
+local_settings.py
+
+# ───────────────────────────── Herramientas / cachés ─────────────────────────────
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# uv: se versiona uv.lock, no la caché.
+.uv/
+
+# ───────────────────────────── Editores e IDE ─────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ───────────────────────────── Sistema operativo ─────────────────────────────
+# Este proyecto vive bajo sincronización de MEGA en Windows.
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# ───────────────────────────── Archivos temporales del proyecto ─────────────────────────────
+_test.txt
+mag/_test.txt
+*.tmp
+
+# ───────────────────────────── Material de trabajo (no versionar) ─────────────────────────────
+# Config local de herramientas.
+.claude/
+
+# Carpeta de consulta: insumos, mapeos y material de referencia (manual de identidad,
+# prompts de traspaso, specs ya implementadas). Se conserva en disco pero NO se versiona.
+# La documentación oficial SÍ se versiona: README, DOCUMENTACION, NOTAS_TECNICAS
+# y GUIA_DISEÑO.
+consulta/

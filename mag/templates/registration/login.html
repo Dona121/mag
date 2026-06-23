@@ -1,0 +1,212 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar sesión — Gobernación de Sucre</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --verde-primario: #109d39;
+            --verde-superficie: #0e4d2a;
+            --verde-superficie-2: #08321b;
+            --verde-claro: #e3f4ea;
+            --rojo: #d92a34;
+            --gris-oscuro: #5a595d;
+            --gris-medio: #686868;
+            --gris-claro: #dfe0e1;
+            --gris-fondo: #f5f6f7;
+            --blanco: #ffffff;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; padding: 0; height: 100%;
+            font-family: 'Montserrat', sans-serif;
+            background: var(--gris-fondo); color: var(--gris-oscuro);
+        }
+
+        /* ===== Layout pantalla completa (split-screen) ===== */
+        .login-wrap {
+            display: grid;
+            grid-template-columns: 1.05fr 1fr;
+            min-height: 100vh;
+            min-height: 100dvh;
+            width: 100%;
+        }
+
+        /* ===== Panel izquierdo (hero) ===== */
+        .login-hero {
+            position: relative;
+            overflow: hidden;
+            background:
+                radial-gradient(120% 120% at 85% 15%, rgba(16,157,57,0.35) 0%, transparent 55%),
+                linear-gradient(160deg, var(--verde-superficie) 0%, var(--verde-superficie-2) 100%);
+            color: var(--blanco);
+            padding: 56px clamp(40px, 6vw, 96px);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        /* Escudo gigante de fondo (marca de agua) */
+        .login-hero .watermark {
+            position: absolute;
+            right: -90px; bottom: -120px;
+            width: 460px; max-width: 70%;
+            opacity: 0.07;
+            pointer-events: none;
+            user-select: none;
+        }
+        .login-hero > * { position: relative; z-index: 1; }
+
+        .login-hero .brand { display: flex; align-items: center; gap: 14px; }
+        .login-hero .brand-mark { display: flex; align-items: center; flex: none; }
+        .login-hero .brand-mark img {
+            height: 64px; width: auto; max-width: 100%;
+            display: block; object-fit: contain;
+        }
+        .login-hero .brand small { display: block; font-size: 12px; opacity: .85; text-transform: uppercase; letter-spacing: .5px; }
+        .login-hero .brand strong { font-size: 20px; font-weight: 800; }
+
+        .login-hero .hero-body { margin: auto 0; }
+        .login-hero h1 {
+            font-size: clamp(34px, 4vw, 52px);
+            font-weight: 800;
+            margin: 0 0 18px;
+            line-height: 1.08;
+            letter-spacing: -.5px;
+        }
+        .login-hero h1 .acento { color: #7be0a0; }
+        .login-hero p {
+            color: rgba(255,255,255,.85);
+            font-size: 15px; line-height: 1.65;
+            margin: 0; max-width: 460px;
+        }
+        .login-hero footer { color: rgba(255,255,255,.6); font-size: 12px; }
+
+        /* ===== Panel derecho (formulario) ===== */
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 48px clamp(28px, 5vw, 64px);
+        }
+        .login-form-inner { width: 100%; max-width: 400px; }
+
+        .seccion-titulo { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .seccion-titulo::before {
+            content: ""; width: 18px; height: 18px;
+            background: var(--verde-primario); border-radius: 4px;
+        }
+        .login-form h2 { margin: 0; font-size: 26px; font-weight: 800; color: var(--gris-oscuro); }
+        .login-form p.intro { color: var(--gris-medio); font-size: 14px; margin: 0 0 26px; }
+
+        .campo { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
+        label { font-weight: 600; font-size: 12px; color: var(--gris-oscuro); text-transform: uppercase; letter-spacing: .3px; }
+        input[type="text"], input[type="password"] {
+            font-family: inherit; font-size: 15px;
+            border: 1px solid var(--gris-claro); border-radius: 8px;
+            padding: 12px 14px;
+            transition: border-color .15s ease, box-shadow .15s ease;
+        }
+        input:focus { outline: none; border-color: var(--verde-primario); box-shadow: 0 0 0 3px rgba(16,157,57,0.20); }
+
+        .btn-submit {
+            width: 100%;
+            background: var(--verde-primario); color: var(--blanco);
+            border: 0; padding: 14px 20px; border-radius: 8px;
+            font-family: inherit; font-weight: 700; font-size: 15px;
+            cursor: pointer; transition: filter .15s ease, transform .05s ease;
+            margin-top: 10px;
+        }
+        .btn-submit:hover { filter: brightness(.95); }
+        .btn-submit:active { transform: translateY(1px); }
+
+        .errores {
+            background: #fdecee; color: var(--rojo);
+            border-left: 4px solid var(--rojo);
+            padding: 10px 14px; border-radius: 4px;
+            font-size: 13px; margin-bottom: 16px;
+        }
+        .errores ul { margin: 0; padding-left: 16px; }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 860px) {
+            .login-wrap { grid-template-columns: 1fr; }
+            .login-hero {
+                padding: 32px 28px;
+                min-height: auto;
+            }
+            .login-hero .hero-body { margin: 22px 0 0; }
+            .login-hero footer { display: none; }
+            .login-hero .watermark { display: none; }
+            .login-hero h1 { font-size: clamp(28px, 8vw, 40px); }
+            .login-hero p { font-size: 14px; }
+            .login-form { padding: 36px 28px 48px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-wrap">
+        <aside class="login-hero">
+            <img class="watermark"
+                 src="{% static 'logos/2025_Blanco_logo-gob-Sucre_3_3.png' %}" alt="">
+            <div class="brand">
+                <div class="brand-mark">
+                    <img src="{% static 'logos/2025_Blanco_logo-gob-Sucre_3_3.png' %}"
+                         alt="Escudo de la Gobernación de Sucre">
+                </div>
+                <div>
+                    <small>Gobernación de</small>
+                    <strong>Sucre</strong>
+                </div>
+            </div>
+
+            <div class="hero-body">
+                <h1>Modelo de<br><span class="acento">Alta Gerencia</span></h1>
+                <p>Plataforma institucional para la parametrización y seguimiento
+                   de evaluaciones por dependencia y periodo.</p>
+            </div>
+
+            <footer>© {% now "Y" %} Gobernación de Sucre</footer>
+        </aside>
+
+        <main class="login-form">
+            <div class="login-form-inner">
+                <div class="seccion-titulo">
+                    <h2>Iniciar sesión</h2>
+                </div>
+                <p class="intro">Ingrese sus credenciales institucionales para continuar.</p>
+
+                {% if form.errors or form.non_field_errors %}
+                    <div class="errores">
+                        <ul>
+                            {% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}
+                            {% for f in form %}
+                                {% for e in f.errors %}<li>{{ f.label }}: {{ e }}</li>{% endfor %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <div class="campo">
+                        <label for="id_username">Usuario</label>
+                        <input type="text" name="username" id="id_username" autocomplete="username" autofocus required>
+                    </div>
+                    <div class="campo">
+                        <label for="id_password">Contraseña</label>
+                        <input type="password" name="password" id="id_password" autocomplete="current-password" required>
+                    </div>
+                    <input type="hidden" name="next" value="{{ next }}">
+                    <button class="btn-submit" type="submit">Iniciar sesión</button>
+                </form>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

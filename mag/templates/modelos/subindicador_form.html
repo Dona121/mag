@@ -1,0 +1,57 @@
+{% extends "base/base.html" %}
+{% load l10n %}
+{% block titulo %}{% if editando %}Editar subindicador{% else %}Nuevo subindicador{% endif %}{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>{% if editando %}Editar subindicador{% else %}Nuevo subindicador{% endif %}</h1>
+    <span class="lead">Indicador: <strong>{{ indicador }}</strong></span>
+</div>
+
+<div class="card" style="max-width:680px;">
+    <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="campo">
+            <label for="orden">Orden (opcional)</label>
+            <input type="number" id="orden" name="orden" placeholder="Ej.: 1, 2, 3..." value="{{ subindicador.orden|default:'' }}">
+        </div>
+        <div class="campo">
+            <label for="nombre">Categoría del subindicador</label>
+            {% if categorias %}
+                <select id="nombre" name="nombre" required>
+                    <option value="">— Seleccione —</option>
+                    {% for cat in categorias %}
+                        <option value="{{ cat.pk }}" {% if subindicador.nombre_id == cat.pk %}selected{% endif %}>{{ cat.nombre }}</option>
+                    {% endfor %}
+                </select>
+            {% else %}
+                <p style="color:var(--rojo); font-size:13px; margin:0;">
+                    No hay categorías de subindicador. Créalas primero en el
+                    <a href="/admin/contenido/subindicadorcategoria/add/" target="_blank" rel="noopener">panel de administración</a>.
+                </p>
+            {% endif %}
+        </div>
+        <div class="campo">
+            <label for="peso">Peso (%)</label>
+            <input type="text" inputmode="decimal" id="peso" name="peso" value="{{ subindicador.peso|default:'0'|unlocalize }}" class="js-decimal" placeholder="Ej.: 12.5" required>
+        </div>
+        <div class="campo">
+            <label for="tipo_calculo">Tipo de cálculo</label>
+            <select id="tipo_calculo" name="tipo_calculo" required>
+                <option value="directo" {% if subindicador.tipo_calculo != 'mensual' %}selected{% endif %}>Directo (un solo puntaje por periodo)</option>
+                <option value="mensual" {% if subindicador.tipo_calculo == 'mensual' %}selected{% endif %}>Mensual (un puntaje por mes)</option>
+            </select>
+            <small style="color:var(--gris-medio); margin-top:4px;">
+                Mensual permite ingresar puntaje por cada mes del periodo y guarda detalles en
+                <code>EvaluacionResultadoDetalle</code>. Directo guarda un único valor en
+                <code>EvaluacionResultado</code>.
+            </small>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primario" type="submit">{% if editando %}Actualizar{% else %}Guardar{% endif %} subindicador</button>
+            <a class="btn btn-borde" href="{% url 'contenido:modelo_detalle' indicador.pilar.modelo_evaluacion_id %}">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% include "partials/decimal_validacion.html" %}
+{% endblock %}

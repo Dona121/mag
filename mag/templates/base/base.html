@@ -1,0 +1,516 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titulo %}Modelo de Alta Gerencia{% endblock %} — Gobernación de Sucre</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Verdes corporativos (manual de identidad) — usados como acentos */
+            --verde-primario: #109d39;
+            --verde-claro: #e3f4ea;
+            /* Verdes profundos para superficies grandes (sidebar) — más sobrios */
+            --verde-superficie: #0e4d2a;
+            --verde-superficie-2: #08321b;
+            --verde-superficie-3: #052013;
+            --azul: #0b72ab;
+            --rojo: #d92a34;
+            --naranja: #ffa700;
+            --negro: #000000;
+            --gris-oscuro: #5a595d;
+            --gris-medio: #686868;
+            --gris-claro: #dfe0e1;
+            --gris-fondo: #f5f6f7;
+            --blanco: #ffffff;
+
+            --sidebar-w: 240px;
+            --sidebar-w-collapsed: 64px;
+            --topbar-h: 52px;
+            --radio-base: 6px;
+            --sombra-suave: 0 1px 2px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.05);
+            --sombra-foco: 0 0 0 3px rgba(16,157,57,0.20);
+            --transicion: 220ms cubic-bezier(.4,.0,.2,1);
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; padding: 0;
+            font-family: 'Montserrat', 'Helvetica Neue', Arial, sans-serif;
+            background: var(--gris-fondo);
+            color: var(--gris-oscuro);
+            font-size: 14px; line-height: 1.5;
+        }
+        body { min-height: 100vh; display: flex; flex-direction: column; }
+
+        /* ============== SIDEBAR ============== */
+        .sidebar {
+            position: fixed; top: 0; left: 0;
+            width: var(--sidebar-w); height: 100vh;
+            background: var(--verde-superficie);
+            color: var(--blanco);
+            display: flex; flex-direction: column;
+            z-index: 100;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.18);
+            transition: width var(--transicion), transform var(--transicion);
+            overflow: hidden;
+        }
+        body.sidebar-colapsado .sidebar { width: var(--sidebar-w-collapsed); }
+
+        /* Cuando está colapsado: el label se queda sin ancho para no empujar al icono */
+        body.sidebar-colapsado .sidebar .label {
+            opacity: 0; width: 0; overflow: hidden; pointer-events: none;
+        }
+        body.sidebar-colapsado .sidebar .brand-text {
+            opacity: 0; width: 0; overflow: hidden; pointer-events: none;
+        }
+        body.sidebar-colapsado .sidebar .pie-side small {
+            opacity: 0; width: 0; overflow: hidden; pointer-events: none;
+        }
+        body.sidebar-colapsado .sidebar .nav a {
+            justify-content: center;
+            padding: 10px 0;
+            gap: 0;
+        }
+        body.sidebar-colapsado .sidebar .brand { justify-content: center; padding: 14px 0; }
+        body.sidebar-colapsado .sidebar .pie-side { justify-content: center; padding: 10px 0; }
+        body.sidebar-colapsado .sidebar .seccion-label {
+            opacity: 0; height: 0; padding: 0; margin: 0; overflow: hidden; pointer-events: none;
+        }
+
+        .sidebar .brand {
+            display: flex; align-items: center; gap: 10px;
+            padding: 14px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.10);
+            min-height: var(--topbar-h);
+            flex: none;
+        }
+        .sidebar .brand-mark {
+            display: flex; align-items: center; flex: none;
+        }
+        .sidebar .brand-mark img {
+            height: 40px; width: auto; max-width: 100%;
+            display: block; object-fit: contain;
+        }
+        .sidebar .brand-text {
+            display: flex; flex-direction: column; line-height: 1.15;
+            transition: opacity 160ms ease, width 220ms ease;
+            white-space: nowrap;
+        }
+        .sidebar .brand-text small { font-weight: 400; font-size: 10px; opacity: .9; letter-spacing: .4px; text-transform: uppercase; }
+        .sidebar .brand-text strong { font-weight: 800; font-size: 15px; }
+
+        .sidebar .nav { list-style: none; margin: 8px 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+        /* Scrollbar sutil sobre el verde del sidebar */
+        .sidebar .nav::-webkit-scrollbar { width: 6px; }
+        .sidebar .nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.22); border-radius: 6px; }
+        .sidebar .nav::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.35); }
+        .sidebar .nav { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.22) transparent; }
+        .sidebar .nav a {
+            display: flex; align-items: center; gap: 12px;
+            color: rgba(255,255,255,0.92); text-decoration: none;
+            padding: 10px 18px;
+            font-weight: 500; font-size: 13.5px;
+            border-left: 3px solid transparent;
+            transition: background var(--transicion), border-color var(--transicion);
+            white-space: nowrap;
+        }
+        .sidebar .nav a:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .sidebar .nav a.activo {
+            background: rgba(16,157,57,0.22);
+            border-left-color: var(--verde-primario);
+            color: #fff;
+        }
+        .sidebar .nav .icon { width: 22px; height: 22px; flex: none; display: grid; place-items: center; }
+        .sidebar .nav .icon svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .sidebar .nav .label {
+            transition: opacity 160ms ease, width 220ms ease;
+            white-space: nowrap; overflow: hidden;
+        }
+        .sidebar .seccion-label {
+            text-transform: uppercase; font-size: 10px; letter-spacing: .8px;
+            color: rgba(255,255,255,.45);
+            padding: 14px 18px 6px; font-weight: 700;
+            transition: opacity 160ms ease, height 220ms ease;
+        }
+        .sidebar .pie-side {
+            border-top: 1px solid rgba(255,255,255,0.10);
+            padding: 10px 14px; font-size: 11px; color: rgba(255,255,255,.78);
+            display: flex; gap: 8px; align-items: center;
+        }
+        .sidebar .pie-side .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--naranja);
+            box-shadow: 0 0 0 3px rgba(255,167,0,0.25);
+            flex: none;
+        }
+        .sidebar .pie-side small { transition: opacity 160ms ease, width 220ms ease; white-space: nowrap; }
+
+        /* ============== TOPBAR-MINI ============== */
+        .topbar-mini {
+            position: sticky; top: 0;
+            background: var(--blanco);
+            border-bottom: 1px solid var(--gris-claro);
+            height: var(--topbar-h);
+            display: flex; align-items: center;
+            padding: 0 18px; gap: 12px;
+            z-index: 50;
+        }
+        .toggle-btn {
+            background: var(--gris-fondo); border: 1px solid var(--gris-claro);
+            color: var(--gris-oscuro);
+            width: 36px; height: 36px; border-radius: 6px;
+            cursor: pointer;
+            display: grid; place-items: center;
+            transition: background var(--transicion);
+        }
+        .toggle-btn:hover { background: var(--verde-claro); color: var(--verde-superficie); border-color: var(--verde-superficie); }
+        .toggle-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; }
+        .topbar-mini .breadcrumb { font-size: 12.5px; color: var(--gris-medio); font-weight: 500; }
+        .topbar-mini .breadcrumb strong { color: var(--gris-oscuro); }
+        .topbar-mini .right-area { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--gris-medio); }
+
+        /* ============== APP-SHELL ============== */
+        .app-shell {
+            margin-left: var(--sidebar-w);
+            display: flex; flex-direction: column;
+            min-height: 100vh;
+            transition: margin-left var(--transicion);
+            flex: 1;
+        }
+        body.sidebar-colapsado .app-shell { margin-left: var(--sidebar-w-collapsed); }
+        main.contenedor { max-width: 1240px; width: 100%; margin: 18px auto 24px; padding: 0 22px; flex: 1 0 auto; }
+
+        .seccion-titulo { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; flex-wrap: wrap; }
+        .seccion-titulo::before { content: ""; width: 18px; height: 18px; background: var(--verde-primario); border-radius: 3px; flex: none; }
+        .seccion-titulo h1 { margin: 0; font-size: 22px; font-weight: 800; color: var(--gris-oscuro); letter-spacing: -.2px; }
+        .seccion-titulo .lead { color: var(--gris-medio); font-size: 12.5px; margin-left: 6px; border-left: 2px solid var(--gris-claro); padding-left: 10px; }
+
+        .card { background: var(--blanco); border: 1px solid var(--gris-claro); border-radius: var(--radio-base); box-shadow: var(--sombra-suave); padding: 16px 18px; margin-bottom: 14px; }
+        .card h2 { font-size: 15px; font-weight: 700; color: var(--gris-oscuro); margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
+        .card h2::before { content: ""; width: 4px; height: 18px; background: var(--verde-primario); border-radius: 2px; }
+
+        .btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid transparent; background: var(--gris-claro); color: var(--gris-oscuro); font-family: inherit; font-weight: 600; font-size: 13px; padding: 9px 18px; border-radius: var(--radio-base); cursor: pointer; text-decoration: none; transition: filter .15s ease, transform .05s ease; }
+        .btn:hover { filter: brightness(.96); }
+        .btn:active { transform: translateY(1px); }
+        .btn-primario { background: var(--verde-primario); color: var(--blanco); }
+        .btn-secundario { background: var(--azul); color: var(--blanco); }
+        .btn-naranja { background: var(--naranja); color: var(--negro); }
+        .btn-peligro { background: var(--rojo); color: var(--blanco); }
+        .btn-borde { background: var(--blanco); border-color: var(--gris-claro); color: var(--gris-oscuro); }
+        .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+        form .campo { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+        form label { font-weight: 600; font-size: 12.5px; color: var(--gris-oscuro); text-transform: uppercase; letter-spacing: .3px; }
+        form input[type="text"], form input[type="number"], form select, form textarea {
+            font-family: inherit; font-size: 14px;
+            border: 1px solid var(--gris-claro); border-radius: var(--radio-base);
+            padding: 9px 12px; background: var(--blanco);
+            transition: border-color .15s ease, box-shadow .15s ease;
+            color: var(--gris-oscuro);
+        }
+        form input:focus, form select:focus, form textarea:focus { outline: none; border-color: var(--verde-primario); box-shadow: var(--sombra-foco); }
+        /* Validacion de decimales (separador unico) */
+        .input-invalido { border-color: var(--rojo) !important; box-shadow: 0 0 0 3px rgba(217,42,52,.18) !important; }
+        .campo-error { display: block; color: var(--rojo); font-size: 11.5px; font-weight: 600; margin-top: 4px; }
+        .campo-error:empty { display: none; }
+        .form-actions { display: flex; gap: 10px; margin-top: 10px; }
+
+        table.std { width: 100%; border-collapse: collapse; background: var(--blanco); border-radius: var(--radio-base); overflow: hidden; }
+        table.std thead th { background: var(--verde-superficie); color: var(--blanco); text-align: left; font-weight: 600; text-transform: uppercase; font-size: 11.5px; letter-spacing: .4px; padding: 12px 14px; }
+        table.std tbody td { padding: 12px 14px; border-bottom: 1px solid var(--gris-claro); font-size: 13.5px; }
+        table.std tbody tr:hover { background: var(--verde-claro); }
+        table.std tbody tr:last-child td { border-bottom: none; }
+
+        .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; }
+        .badge-activo   { background: var(--verde-claro); color: var(--verde-superficie); }
+        .badge-inactivo { background: var(--gris-claro); color: var(--gris-medio); }
+        .badge-azul     { background: rgba(11,114,171,.12); color: var(--azul); }
+
+        .mensajes { margin: 0 0 14px; padding: 0; list-style: none; }
+        .mensajes li { border-left: 4px solid var(--verde-primario); background: var(--verde-claro); color: var(--verde-superficie); padding: 10px 14px; border-radius: 4px; margin-bottom: 8px; font-weight: 500; }
+        .mensajes li.error    { border-color: var(--rojo);    background: #fdecee; color: var(--rojo); }
+        .mensajes li.warning  { border-color: var(--naranja); background: #fff5e0; color: #a36a00; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 14px; }
+        .stat-card { background: var(--blanco); border: 1px solid var(--gris-claro); border-radius: var(--radio-base); padding: 14px 16px; box-shadow: var(--sombra-suave); position: relative; overflow: hidden; }
+        .stat-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--verde-primario); }
+        .stat-card.azul::before    { background: var(--azul); }
+        .stat-card.naranja::before { background: var(--naranja); }
+        .stat-card.rojo::before    { background: var(--rojo); }
+        .stat-card .stat-label { font-size: 11px; color: var(--gris-medio); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+        .stat-card .stat-value { font-size: 26px; font-weight: 800; color: var(--gris-oscuro); line-height: 1.1; margin-top: 4px; }
+
+        footer.pie { border-top: 2px solid var(--verde-primario); background: var(--blanco); padding: 10px 28px; color: var(--gris-medio); font-size: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; flex: none; }
+        footer.pie strong { color: var(--verde-superficie); font-weight: 700; }
+
+        .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 90; opacity: 0; transition: opacity var(--transicion); }
+        body.sidebar-abierto-mobile .sidebar-backdrop { display: block; opacity: 1; }
+
+        @media (max-width: 900px) {
+            .sidebar { transform: translateX(-100%); width: var(--sidebar-w); }
+            body.sidebar-colapsado .sidebar { width: var(--sidebar-w); }
+            body.sidebar-abierto-mobile .sidebar { transform: translateX(0); }
+            body.sidebar-abierto-mobile .sidebar .label,
+            body.sidebar-abierto-mobile .sidebar .brand-text {
+                opacity: 1 !important; width: auto !important; pointer-events: auto !important;
+            }
+            .app-shell { margin-left: 0 !important; }
+            main.contenedor { padding: 0 14px; }
+        }
+
+        /* ============== DASHBOARD (compartido entre vistas) ============== */
+        .dash-tabs { display:flex; gap:4px; margin-bottom:16px; border-bottom:2px solid var(--gris-claro); }
+        .dash-tabs a { padding:9px 16px; font-weight:600; font-size:13px; color:var(--gris-medio); text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-2px; }
+        .dash-tabs a:hover { color:var(--verde-superficie); }
+        .dash-tabs a.activo { color:var(--verde-primario); border-bottom-color:var(--verde-primario); }
+        .dash-titulo { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+        .dash-titulo .sub { color: var(--gris-medio); font-size: 12.5px; }
+        .dash-kpis { display:grid; grid-template-columns: repeat(3, 1fr); gap:14px; margin-bottom:14px; }
+        @media (max-width: 900px) { .dash-kpis { grid-template-columns: 1fr; } }
+        .kpi-card { background:#fff; border:1px solid var(--gris-claro); border-radius:12px; padding:16px 18px; box-shadow: var(--sombra-suave); }
+        .kpi-card .kpi-label { font-size:12px; color:var(--gris-medio); text-transform:uppercase; letter-spacing:.04em; }
+        .kpi-card .kpi-value { font-size:30px; font-weight:800; color:var(--gris-oscuro); line-height:1.1; margin-top:4px; }
+        .kpi-card .kpi-foot { font-size:12px; color:var(--gris-medio); margin-top:6px; }
+        .delta { font-weight:700; }
+        .delta.pos { color: var(--verde-primario); }
+        .delta.neg { color: var(--rojo); }
+        .delta.cero { color: var(--gris-medio); }
+        .kpi-card.semaforo-pos { border-left:4px solid var(--verde-primario); }
+        .kpi-card.semaforo-neg { border-left:4px solid var(--rojo); }
+        .kpi-card.semaforo-cero { border-left:4px solid var(--gris-medio); }
+        .dash-2col { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+        @media (max-width: 900px) { .dash-2col { grid-template-columns: 1fr; } }
+        .barra-row { display:grid; grid-template-columns: 150px 1fr 84px; align-items:center; gap:10px; margin-bottom:9px; }
+        .barra-row .et { font-size:12.5px; color:var(--gris-oscuro); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .barra-track { display:block; background:#eef1f4; border-radius:6px; height:14px; overflow:hidden; }
+        .barra-fill { display:block; height:100%; min-width:2px; background:var(--verde-primario); border-radius:6px; }
+        .barra-fill.azul { background:var(--azul); }
+        .barra-row .val { font-size:12.5px; font-weight:700; text-align:right; color:var(--gris-oscuro); }
+        .pos-badge { display:inline-grid; place-items:center; width:24px; height:24px; border-radius:50%;
+            background:var(--verde-claro); color:var(--verde-superficie); font-weight:800; font-size:12px; }
+        .dash-filtros { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+        .dash-filtros .campo-f { display:flex; flex-direction:column; gap:4px; }
+        .dash-filtros label { font-size:11px; text-transform:uppercase; letter-spacing:.3px; color:var(--gris-medio); font-weight:700; }
+        .dash-filtros select { min-width:160px; }
+        .dash-filtros .acciones { display:flex; gap:8px; align-items:center; margin-left:auto; }
+
+        {% block estilos_extra %}{% endblock %}
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar" aria-label="Navegación principal">
+        <div class="brand">
+            <div class="brand-mark">
+                <img src="{% static 'logos/2025_Blanco_logo-gob-Sucre_3_3.png' %}"
+                     alt="Escudo de la Gobernación de Sucre">
+            </div>
+            <div class="brand-text">
+                <small>Gobernación de</small>
+                <strong>Sucre</strong>
+            </div>
+        </div>
+
+        <nav style="flex:1; min-height:0; display:flex; flex-direction:column;">
+            <ul class="nav">
+                <li class="seccion-label"><span class="label">General</span></li>
+                <li>
+                    <a href="{% url 'contenido:dashboard' %}"
+                       class="{% if request.resolver_match.url_name == 'dashboard' %}activo{% endif %}"
+                       title="Inicio">
+                        <span class="icon"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg></span>
+                        <span class="label">Inicio</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'contenido:dashboard_imag' %}"
+                       class="{% if 'dashboard_' in request.resolver_match.url_name %}activo{% endif %}"
+                       title="Dashboard">
+                        <span class="icon"><svg viewBox="0 0 24 24"><line x1="4" y1="20" x2="4" y2="10"/><line x1="10" y1="20" x2="10" y2="4"/><line x1="16" y1="20" x2="16" y2="13"/><line x1="22" y1="20" x2="2" y2="20"/></svg></span>
+                        <span class="label">Dashboard</span>
+                    </a>
+                </li>
+
+                {% if not es_evaluador %}
+                <li class="seccion-label"><span class="label">Parametrización</span></li>
+                <li>
+                    <a href="{% url 'contenido:categoria_list' 'pilar' %}"
+                       class="{% if request.resolver_match.kwargs.tipo == 'pilar' %}activo{% endif %}"
+                       title="Categorías de pilar">
+                        <span class="icon"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="18" rx="1"/><rect x="16" y="3" width="4" height="18" rx="1"/></svg></span>
+                        <span class="label">Cat. de pilar</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'contenido:categoria_list' 'indicador' %}"
+                       class="{% if request.resolver_match.kwargs.tipo == 'indicador' %}activo{% endif %}"
+                       title="Categorías de indicador">
+                        <span class="icon"><svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg></span>
+                        <span class="label">Cat. de indicador</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'contenido:categoria_list' 'subindicador' %}"
+                       class="{% if request.resolver_match.kwargs.tipo == 'subindicador' %}activo{% endif %}"
+                       title="Categorías de subindicador">
+                        <span class="icon"><svg viewBox="0 0 24 24"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><line x1="4" y1="6" x2="4.01" y2="6"/><line x1="4" y1="12" x2="4.01" y2="12"/><line x1="4" y1="18" x2="4.01" y2="18"/></svg></span>
+                        <span class="label">Cat. de subindicador</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'contenido:modelo_list' %}"
+                       class="{% if 'modelo' in request.resolver_match.url_name or 'pilar' in request.resolver_match.url_name or 'indicador' in request.resolver_match.url_name or 'subindicador' in request.resolver_match.url_name or 'criterio' in request.resolver_match.url_name or 'dependencia_modelo' in request.resolver_match.url_name %}activo{% endif %}"
+                       title="Modelos">
+                        <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg></span>
+                        <span class="label">Modelos</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                <li class="seccion-label"><span class="label">Operación</span></li>
+                <li>
+                    <a href="{% url 'contenido:evaluacion_list' %}"
+                       class="{% if 'evaluacion' in request.resolver_match.url_name %}activo{% endif %}"
+                       title="Evaluaciones">
+                        <span class="icon"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></span>
+                        <span class="label">Evaluaciones</span>
+                    </a>
+                </li>
+                {% if not es_evaluador %}
+                <li>
+                    <a href="{% url 'contenido:periodo_list' %}"
+                       class="{% if 'periodo' in request.resolver_match.url_name %}activo{% endif %}"
+                       title="Periodos">
+                        <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></span>
+                        <span class="label">Periodos</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                {% if not es_evaluador %}
+                <li class="seccion-label"><span class="label">Sistema</span></li>
+                <li>
+                    <a href="/admin/" target="_blank" rel="noopener" title="Admin Django">
+                        <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span>
+                        <span class="label">Administración</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                {% if user.is_authenticated %}
+                <li class="seccion-label"><span class="label">Cuenta</span></li>
+                <li>
+                    <a href="{% url 'contenido:password_change' %}" title="Cambiar contraseña">
+                        <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                        <span class="label">Cambiar contraseña</span>
+                    </a>
+                </li>
+                <li>
+                    <form method="post" action="{% url 'contenido:logout' %}" style="margin:0;">
+                        {% csrf_token %}
+                        <button type="submit"
+                                title="Cerrar sesión"
+                                style="all:unset; cursor:pointer; display:flex; align-items:center; gap:12px;
+                                       color:rgba(255,255,255,.92); padding:10px 18px;
+                                       font-weight:500; font-size:13.5px; width:100%;
+                                       border-left:3px solid transparent;
+                                       transition: background var(--transicion), border-color var(--transicion);
+                                       white-space:nowrap;"
+                                onmouseover="this.style.background='rgba(255,255,255,0.08)'"
+                                onmouseout="this.style.background='transparent'">
+                            <span class="icon"><svg viewBox="0 0 24 24"><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></svg></span>
+                            <span class="label">Cerrar sesión</span>
+                        </button>
+                    </form>
+                </li>
+                {% endif %}
+            </ul>
+
+            <div class="pie-side">
+                <span class="dot"></span>
+                <small>
+                    {% if user.is_authenticated %}
+                        {{ user.get_full_name|default:user.username }}
+                        {% if user.is_superuser %} · admin{% endif %}
+                    {% else %}
+                        Modelo Alta Gerencia · v1.0
+                    {% endif %}
+                </small>
+            </div>
+        </nav>
+    </aside>
+
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+    <div class="app-shell">
+        <div class="topbar-mini">
+            <button type="button" class="toggle-btn" id="toggle-sidebar"
+                    aria-label="Mostrar u ocultar barra lateral">
+                <svg viewBox="0 0 24 24"><line x1="3" y1="6"  x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div class="breadcrumb">
+                <strong>Modelo de Alta Gerencia</strong> · {% block breadcrumb %}Inicio{% endblock %}
+            </div>
+            <div class="right-area">
+                <span>Gobernación de Sucre</span>
+            </div>
+        </div>
+
+        <main class="contenedor">
+            {% if messages %}
+                <ul class="mensajes">
+                    {% for m in messages %}
+                        <li class="{{ m.tags }}">{{ m }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+
+            {% block contenido %}{% endblock %}
+        </main>
+
+        <footer class="pie">
+            <span>© {% now "Y" %} <strong>Gobernación de Sucre</strong> — Modelo de Alta Gerencia</span>
+            <span>v1.0</span>
+        </footer>
+    </div>
+
+    <script>
+        (function () {
+            const body     = document.body;
+            const btn      = document.getElementById('toggle-sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            const STORAGE  = 'sidebar-colapsado';
+            const MOBILE_Q = window.matchMedia('(max-width: 900px)');
+
+            if (!MOBILE_Q.matches && localStorage.getItem(STORAGE) === '1') {
+                body.classList.add('sidebar-colapsado');
+            }
+
+            btn.addEventListener('click', () => {
+                if (MOBILE_Q.matches) {
+                    body.classList.toggle('sidebar-abierto-mobile');
+                } else {
+                    body.classList.toggle('sidebar-colapsado');
+                    localStorage.setItem(STORAGE,
+                        body.classList.contains('sidebar-colapsado') ? '1' : '0');
+                }
+            });
+
+            backdrop.addEventListener('click', () => {
+                body.classList.remove('sidebar-abierto-mobile');
+            });
+
+            MOBILE_Q.addEventListener('change', () => {
+                body.classList.remove('sidebar-abierto-mobile');
+            });
+        })();
+    </script>
+
+    {% block scripts_extra %}{% endblock %}
+</body>
+</html>

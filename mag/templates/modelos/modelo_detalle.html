@@ -1,0 +1,381 @@
+{% extends "base/base.html" %}
+{% block titulo %}{{ modelo.nombre }}{% endblock %}
+
+{% block estilos_extra %}
+/* ============================================
+   Arbol jerarquico con guias verticales y
+   conectores horizontales (details/summary).
+   Cada nivel hereda un color identificador:
+   pilar=verde, indicador=azul, sub=naranja.
+   ============================================ */
+
+/* Reset details */
+details.tree { margin: 0; position: relative; }
+details.tree > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    user-select: none;
+    transition: background .12s ease, filter .12s ease;
+}
+details.tree > summary::-webkit-details-marker { display: none; }
+details.tree > summary::marker { content: ""; }
+details.tree > summary:hover { filter: brightness(.97); }
+
+/* Chevron rota al abrir */
+.chevron {
+    width: 16px; height: 16px; flex: none;
+    transition: transform .18s ease;
+    color: inherit;
+}
+.chevron svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+details.tree[open] > summary .chevron { transform: rotate(90deg); }
+
+/* ============================================
+   ESTILO POR NIVEL
+   ============================================ */
+.lvl-pilar > summary {
+    background: var(--verde-claro);
+    border-left: 5px solid var(--verde-primario);
+    color: var(--verde-superficie);
+    font-weight: 700;
+    font-size: 14px;
+}
+.lvl-indicador > summary {
+    background: rgba(11,114,171,.08);
+    border-left: 4px solid var(--azul);
+    color: var(--azul);
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 12px;
+}
+.lvl-sub > summary {
+    background: rgba(255,167,0,.10);
+    border-left: 3px solid var(--naranja);
+    color: #8a5a00;
+    font-weight: 600;
+    font-size: 12.5px;
+    padding: 7px 12px;
+}
+
+/* ============================================
+   GUIAS VERTICALES + CONECTORES HORIZONTALES
+   .children es el contenedor que dibuja el rail
+   vertical. Cada hijo dibuja su propio brazo.
+   ============================================ */
+.children {
+    position: relative;
+    margin-left: 16px;
+    padding: 6px 0 6px 28px;
+    /* La rail se dibuja con border-left */
+    border-left: 2px dashed var(--gris-claro);
+}
+/* Color de la rail segun nivel del padre */
+.lvl-pilar     > .children { border-left-color: rgba(16,157,57,.45); }
+.lvl-indicador > .children { border-left-color: rgba(11,114,171,.40); }
+.lvl-sub       > .children { border-left-color: rgba(255,167,0,.55); }
+
+/* Brazo horizontal: cada hijo directo de .children */
+.children > details.tree,
+.children > .criterio-item,
+.children > .empty-line {
+    margin-top: 6px;
+    margin-bottom: 4px;
+}
+.children > details.tree::before,
+.children > .criterio-item::before,
+.children > .empty-line::before {
+    content: "";
+    position: absolute;
+    left: -28px;          /* corre desde la rail hasta el item */
+    top: 17px;            /* alineado con centro vertical del summary */
+    width: 28px;
+    height: 0;
+    border-top: 2px dashed var(--gris-claro);
+}
+/* Brazos coloreados segun nivel del PADRE */
+.lvl-pilar     > .children > details.tree::before,
+.lvl-pilar     > .children > .empty-line::before { border-top-color: rgba(16,157,57,.45); }
+.lvl-indicador > .children > details.tree::before,
+.lvl-indicador > .children > .empty-line::before { border-top-color: rgba(11,114,171,.40); }
+.lvl-sub       > .children > .criterio-item::before,
+.lvl-sub       > .children > .empty-line::before { border-top-color: rgba(255,167,0,.55); }
+
+/* Para nivel SUB el brazo aparece mas arriba (item es mas pequenio) */
+.lvl-indicador > .children > details.tree::before { top: 16px; }
+.lvl-sub       > .children > .criterio-item::before { top: 12px; }
+
+/* Tags y otros */
+.titulo-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+}
+.titulo-info .tipo {
+    font-weight: 700;
+    opacity: .65;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: .8px;
+    background: rgba(0,0,0,.06);
+    padding: 2px 8px;
+    border-radius: 4px;
+    flex: none;
+}
+.tree-acciones {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex: none;
+}
+.peso-tag {
+    background: var(--blanco);
+    border: 1px solid var(--gris-claro);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--gris-medio);
+    font-weight: 600;
+}
+
+/* Criterio (hoja) */
+.criterio-item {
+    position: relative;
+    padding: 6px 10px;
+    color: var(--gris-medio);
+    font-size: 12px;
+    background: var(--blanco);
+    border-left: 2px solid var(--gris-claro);
+    margin-top: 4px !important;
+    margin-bottom: 2px !important;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+.criterio-item .crit-cuerpo { flex: 1; min-width: 0; }
+.criterio-item .crit-nombre {
+    color: var(--gris-oscuro);
+    font-weight: 600;
+    white-space: pre-line;     /* respeta los saltos de línea del TextField */
+    overflow-wrap: anywhere;   /* corta cadenas larguísimas sin desbordar */
+    line-height: 1.4;
+}
+.criterio-item .crit-rango {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--verde-superficie);
+    background: var(--verde-claro);
+    padding: 1px 9px;
+    border-radius: 999px;
+}
+.criterio-item .crit-editar { flex: none; }
+
+/* Linea vacia */
+.empty-line {
+    position: relative;
+    color: var(--gris-medio);
+    font-style: italic;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+/* Toolbar global */
+.toolbar-arbol {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+/* Espaciado entre pilares (raiz) */
+.tree-root > .lvl-pilar { margin-bottom: 4px; }
+{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>{{ modelo.nombre }} <small style="font-weight:600; color:var(--gris-medio);">v{{ modelo.version }}</small></h1>
+    <span class="lead">
+        {% if modelo.activo %}
+            <span class="badge badge-activo">Activo</span>
+        {% else %}
+            <span class="badge badge-inactivo">Inactivo</span>
+        {% endif %}
+    </span>
+</div>
+
+<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+    <a class="btn btn-primario" href="{% url 'contenido:pilar_create' modelo.pk %}">+ Pilar</a>
+    <a class="btn btn-borde" href="{% url 'contenido:modelo_editar' modelo.pk %}">Editar modelo</a>
+    {% if not modelo.activo %}
+        <form method="post" action="{% url 'contenido:modelo_activar' modelo.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button class="btn btn-secundario" type="submit">Marcar como activo</button>
+        </form>
+    {% endif %}
+    <a class="btn btn-borde" href="{% url 'contenido:modelo_list' %}">&larr; Volver al listado</a>
+</div>
+
+<div class="card">
+    <h2>Estructura del modelo</h2>
+
+    <div class="toolbar-arbol">
+        <button type="button" class="btn btn-sm btn-borde" id="btn-expandir">Expandir todo</button>
+        <button type="button" class="btn btn-sm btn-borde" id="btn-contraer">Contraer todo</button>
+        <span style="color:var(--gris-medio); font-size:12px; margin-left:6px;">
+            Haz clic en cada elemento para colapsar / expandir.
+        </span>
+    </div>
+
+    <div class="tree-root">
+    {% for pilar in pilares %}
+        <details class="tree lvl-pilar">
+            <summary>
+                <span class="chevron"><svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></span>
+                <span class="titulo-info">
+                    <span class="tipo">Pilar</span>
+                    <span>{{ pilar.nombre }}</span>
+                </span>
+                <span class="tree-acciones">
+                    <span class="peso-tag">Peso {{ pilar.peso }}%</span>
+                    <a class="btn btn-sm btn-borde" href="{% url 'contenido:pilar_editar' pilar.pk %}">Editar</a>
+                    <a class="btn btn-sm btn-borde" href="{% url 'contenido:indicador_create' pilar.pk %}">+ Indicador</a>
+                </span>
+            </summary>
+
+            <div class="children">
+                {% for indicador in pilar.indicador_set.all %}
+                    <details class="tree lvl-indicador">
+                        <summary>
+                            <span class="chevron"><svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></span>
+                            <span class="titulo-info">
+                                <span class="tipo">Indicador</span>
+                                <span>{{ indicador.nombre }}</span>
+                            </span>
+                            <span class="tree-acciones">
+                                <span class="peso-tag">Peso {{ indicador.peso }}%</span>
+                                <a class="btn btn-sm btn-borde" href="{% url 'contenido:indicador_editar' indicador.pk %}">Editar</a>
+                                <a class="btn btn-sm btn-borde" href="{% url 'contenido:subindicador_create' indicador.pk %}">+ Subindicador</a>
+                            </span>
+                        </summary>
+
+                        <div class="children">
+                            {% for sub in indicador.subindicador_set.all %}
+                                <details class="tree lvl-sub">
+                                    <summary>
+                                        <span class="chevron"><svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></span>
+                                        <span class="titulo-info">
+                                            <span class="tipo">Subind.</span>
+                                            <span>{{ sub.nombre }}</span>
+                                        </span>
+                                        <span class="tree-acciones">
+                                            <span class="peso-tag">Peso {{ sub.peso }}%</span>
+                                            <a class="btn btn-sm btn-borde" href="{% url 'contenido:subindicador_editar' sub.pk %}">Editar</a>
+                                            <a class="btn btn-sm btn-borde" href="{% url 'contenido:criterio_create' sub.pk %}">+ Criterio</a>
+                                        </span>
+                                    </summary>
+                                    <div class="children">
+                                        {% for c in sub.criterio_set.all %}
+                                            <div class="criterio-item">
+                                                <div class="crit-cuerpo">
+                                                    <div class="crit-nombre">{{ c.nombre }}</div>
+                                                    {% if c.rango %}<span class="crit-rango">{{ c.rango }}</span>{% endif %}
+                                                </div>
+                                                <a class="btn btn-sm btn-borde crit-editar" href="{% url 'contenido:criterio_editar' c.pk %}">Editar</a>
+                                            </div>
+                                        {% empty %}
+                                            <div class="empty-line">Sin criterios definidos.</div>
+                                        {% endfor %}
+                                    </div>
+                                </details>
+                            {% empty %}
+                                <div class="empty-line">Sin subindicadores en este indicador.</div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                {% empty %}
+                    <div class="empty-line">Sin indicadores en este pilar.</div>
+                {% endfor %}
+            </div>
+        </details>
+    {% empty %}
+        <p style="color:var(--gris-medio);">Aun no se ha definido ningun pilar para este modelo.</p>
+    {% endfor %}
+    </div>
+</div>
+
+<div class="card">
+    <h2>Dependencias asignadas</h2>
+
+    <table class="std" style="margin-bottom:14px;">
+        <thead>
+            <tr>
+                <th>Dependencia</th>
+                <th style="width:140px;">Estado</th>
+                <th style="width:200px;">Asignada</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dm in dependencias_asignadas %}
+            <tr>
+                <td>{{ dm.dependencia }}</td>
+                <td>
+                    {% if dm.activo %}
+                        <span class="badge badge-activo">Activa</span>
+                    {% else %}
+                        <span class="badge badge-inactivo">Inactiva</span>
+                    {% endif %}
+                </td>
+                <td>{{ dm.creado_en|date:"d M Y, H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" style="text-align:center; color:var(--gris-medio); padding:18px;">
+                Aun no hay dependencias asignadas.
+            </td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <form method="post" action="{% url 'contenido:dependencia_modelo_asignar' modelo.pk %}"
+          style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+        {% csrf_token %}
+        <div class="campo" style="flex:1; min-width:240px;">
+            <label for="dependencia">Asignar dependencia</label>
+            <select name="dependencia" id="dependencia" required>
+                <option value="">&mdash; Seleccione &mdash;</option>
+                {% for d in dependencias_disponibles %}
+                    <option value="{{ d.pk }}">{{ d.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="campo" style="flex-direction:row; align-items:center; gap:6px;">
+            <input type="checkbox" name="activo" id="activo" checked>
+            <label for="activo" style="text-transform:none;">Marcar como activo</label>
+        </div>
+        <button class="btn btn-primario" type="submit">Asignar</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+(function () {
+    const expandirBtn = document.getElementById('btn-expandir');
+    const contraerBtn = document.getElementById('btn-contraer');
+    const allDetails  = document.querySelectorAll('details.tree');
+    if (expandirBtn) expandirBtn.addEventListener('click', () => allDetails.forEach(d => d.open = true));
+    if (contraerBtn) contraerBtn.addEventListener('click', () => allDetails.forEach(d => d.open = false));
+    // Evita que un click en los botones del summary alterne el desplegable
+    document.querySelectorAll('details.tree > summary .tree-acciones').forEach(el => {
+        el.addEventListener('click', e => { e.stopPropagation(); });
+    });
+})();
+</script>
+{% endblock %}

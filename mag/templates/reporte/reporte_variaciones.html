@@ -1,0 +1,145 @@
+{% extends base_template|default:"reporte/base_reporte.html" %}
+{% load static l10n %}
+{% block titulo %}Variaciones{% endblock %}
+
+{% block topmeta %}
+  {% if periodo_actual %}<span class="d-chip">Periodo <strong>{{ periodo_actual }}</strong></span>{% endif %}
+  {% if periodo_anterior %}<span class="d-chip">vs <strong>{{ periodo_anterior }}</strong></span>{% endif %}
+{% endblock %}
+
+{% block footer_extra %}{% if sel_pilar %}<div><span class="k">Indicador</span> · {{ sel_pilar }}</div>{% endif %}{% endblock %}
+
+{% block toolbar %}
+{% if modelos %}
+<div class="d-toolbar">
+  <div class="r-wrap">
+    <form method="get" class="d-filtros">
+      {% if modelos|length > 1 %}
+      <div class="d-f"><label for="f-modelo">Modelo</label>
+        <select id="f-modelo" name="modelo" onchange="this.form.submit()">
+          {% for m in modelos %}<option value="{{ m.pk }}" {% if sel_modelo and m.pk == sel_modelo.pk %}selected{% endif %}>{{ m }}{% if m.activo %} ·activo{% endif %}</option>{% endfor %}
+        </select></div>
+      {% endif %}
+      <div class="d-f"><label for="f-pilar">Indicador (pilar)</label>
+        <select id="f-pilar" name="pilar" onchange="this.form.submit()" {% if not pilares_disp %}disabled{% endif %}>
+          <option value="">Todos</option>
+          {% for p in pilares_disp %}<option value="{{ p.pk }}" {% if sel_pilar and p.pk == sel_pilar.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select></div>
+      <div class="d-f"><label for="f-periodo">Periodo</label>
+        <select id="f-periodo" name="periodo" onchange="this.form.submit()" {% if not periodos %}disabled{% endif %}>
+          {% for pp in periodos %}<option value="{{ pp.pk }}" {% if sel_periodo and pp.pk == sel_periodo.pk %}selected{% endif %}>{{ pp }}</option>{% empty %}<option>— sin datos —</option>{% endfor %}
+        </select></div>
+      <div class="d-f"><label for="f-comparar">Comparar con</label>
+        <select id="f-comparar" name="comparar" onchange="this.form.submit()" {% if not periodos %}disabled{% endif %}>
+          <option value="0" {% if sel_comparar_none %}selected{% endif %}>Ninguno</option>
+          {% for pp in periodos %}<option value="{{ pp.pk }}" {% if sel_comparar and pp.pk == sel_comparar.pk %}selected{% endif %}>{{ pp }}</option>{% endfor %}
+        </select></div>
+      <noscript><button type="submit" class="d-btn">Aplicar</button></noscript>
+      <a class="d-clear" href="{% url url_reset %}">Restablecer</a>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+{% if vacio %}
+<main class="d-aviso">
+  <h2>No hay resultados para esta selección</h2>
+  <p>{% if not modelos %}Aún no se ha creado ningún modelo de evaluación.{% elif not periodos %}{% if interno %}Aún no hay periodos con evaluaciones para este modelo.{% else %}Aún no hay periodos publicados para este modelo. Los resultados aparecen cuando el periodo se marca como público.{% endif %}{% else %}Ajusta los filtros.{% endif %}</p>
+</main>
+{% else %}
+<main class="d-main">
+  <div class="r-wrap">
+
+    {% if not hay_comparacion %}
+    <p class="d-narr" style="border-left-color:var(--naranja);">Selecciona un <b>periodo de comparación</b> para calcular las variaciones.</p>
+    {% endif %}
+
+    <section class="d-section d-minis">
+      <div class="d-card d-kpi d-namecard d-kpi--best">
+        <span class="lab">Mejor variación</span>
+        <span class="val sm pos">{% if mejor_var %}{{ mejor_var.dependencia }}{% else %}—{% endif %}</span>
+        <span class="foot">{% if mejor_var %}{{ mejor_var.var|floatformat:2 }} puntos{% else %}sin comparación{% endif %}</span>
+      </div>
+      <div class="d-card d-kpi d-namecard d-kpi--worst">
+        <span class="lab">Variación más desfavorable</span>
+        <span class="val sm neg">{% if peor_var %}{{ peor_var.dependencia }}{% else %}—{% endif %}</span>
+        <span class="foot">{% if peor_var %}{{ peor_var.var|floatformat:2 }} puntos{% else %}sin comparación{% endif %}</span>
+      </div>
+      <div class="d-card d-kpi d-namecard">
+        <span class="lab">Mejor desempeño</span>
+        <span class="val sm">{{ mejor_desemp.dependencia }}</span>
+        <span class="foot">{{ mejor_desemp.total|floatformat:2 }}% · último periodo</span>
+      </div>
+      <div class="d-card d-kpi d-namecard">
+        <span class="lab">Desempeño más desfavorable</span>
+        <span class="val sm">{{ peor_desemp.dependencia }}</span>
+        <span class="foot">{{ peor_desemp.total|floatformat:2 }}% · último periodo</span>
+      </div>
+    </section>
+
+    <section class="d-section d-cols">
+      <div class="d-card">
+        <p class="d-card-h"><span>Variación por dependencia</span><span class="tag">{{ filas|length }}</span></p>
+        <div class="d-table-wrap">
+          <table class="d-table">
+            <thead><tr>
+              <th>Dependencia</th>
+              <th class="num">Periodo anterior</th>
+              <th class="num">Último periodo</th>
+              <th class="num">Variación</th>
+            </tr></thead>
+            <tbody>
+              {% for x in filas %}
+              <tr>
+                <td class="dep">{{ x.dependencia }}</td>
+                <td>{% if x.ant != None %}<span class="d-cell" style="background:rgba(16,157,57,{{ x.ant_a|unlocalize }})">{{ x.ant|floatformat:2 }}%</span>{% else %}<span class="d-cell">—</span>{% endif %}</td>
+                <td><span class="d-cell" style="background:rgba(16,157,57,{{ x.ult_a|unlocalize }})">{{ x.ult|floatformat:2 }}%</span></td>
+                <td>{% if x.var != None %}<span class="d-cell" style="background:rgba({% if x.signo == 'neg' %}217,42,52{% else %}16,157,57{% endif %},{{ x.var_a|unlocalize }})">{% if x.signo == 'pos' %}+{% endif %}{{ x.var|floatformat:2 }}%</span>{% else %}<span class="d-cell">—</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="d-card js-charts">
+        <p class="d-card-h"><span>Variación {{ periodo_anterior }} vs {{ periodo_actual }}</span></p>
+        <div class="d-chartbar"><canvas id="chartVar"></canvas></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+{% endif %}
+{% endblock %}
+
+{% block data %}{% if not vacio %}{{ payload|json_script:"reporteData" }}{% endif %}{% endblock %}
+
+{% block scripts %}
+{% if not vacio %}
+<script>
+window.reporteCharts = function(){
+  if(window.__varDone || typeof Chart==='undefined') return;
+  var el=document.getElementById('chartVar'); if(!el) return;
+  var DATA=JSON.parse(document.getElementById('reporteData').textContent);
+  var rows=DATA.variacion||[];
+  if(!rows.length){ window.__varDone=true; return; }
+  window.__varDone=true;
+  var labels=rows.map(function(r){ return r.dependencia; });
+  var vals=rows.map(function(r){ return r.var; });
+  var colors=vals.map(function(v){ return v>=0 ? '#109d39' : '#e0606a'; });
+  new Chart(el,{type:'bar',
+    data:{labels:labels, datasets:[{data:vals, backgroundColor:colors, borderRadius:4, barThickness:'flex', maxBarThickness:20}]},
+    options:{indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'#0e4d2a', padding:10,
+          callbacks:{label:function(c){ return (c.parsed.x>=0?'+':'')+c.parsed.x.toFixed(2)+'%'; }}}},
+      scales:{x:{grid:{color:'rgba(14,77,42,.07)'}, ticks:{color:'#686868', callback:function(v){ return v+'%'; }}},
+        y:{grid:{display:false}, ticks:{color:'#5a595d', font:{family:'Montserrat', size:11}}}}}
+  });
+};
+</script>
+{% endif %}
+{% endblock %}

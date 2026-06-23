@@ -1,0 +1,24 @@
+{% extends "base/base.html" %}
+{% block titulo %}{% if editando %}Editar{% else %}Nueva{% endif %} {{ cfg.singular }}{% endblock %}
+{% block breadcrumb %}{{ cfg.plural }}{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>{% if editando %}Editar{% else %}Nueva{% endif %} {{ cfg.singular }}</h1>
+</div>
+
+<div class="card" style="max-width:640px;">
+    <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="campo">
+            <label for="nombre">Nombre</label>
+            <input type="text" id="nombre" name="nombre" maxlength="{{ cfg.max_length }}"
+                   value="{{ obj.nombre|default:'' }}" required autofocus>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primario" type="submit">{% if editando %}Actualizar{% else %}Guardar{% endif %}</button>
+            <a class="btn btn-borde" href="{% url 'contenido:categoria_list' tipo %}">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+/* ============================================================
+   Overrides para el admin de Unfold — Gobernacion de Sucre
+   ============================================================ */
+
+/* Asegura que los iconos del sidebar siempre tengan buen contraste,
+   tanto en modo claro como oscuro. Por defecto Unfold los pinta con
+   el color de texto base, que en modo claro queda muy tenue. */
+aside .material-symbols-outlined,
+aside .material-symbols-rounded,
+aside [class*="material-symbols"],
+.unfold-sidebar .material-symbols-outlined {
+    color: rgb(var(--color-primary-600)) !important;
+    opacity: 1 !important;
+    font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Item activo del sidebar: fondo verde claro con icono y texto en verde corporativo */
+aside a.bg-primary-50,
+aside a[aria-current="page"],
+aside a.active {
+    background-color: rgb(var(--color-primary-50)) !important;
+    color: rgb(var(--color-primary-700)) !important;
+}
+aside a.bg-primary-50 .material-symbols-outlined,
+aside a[aria-current="page"] .material-symbols-outlined {
+    color: rgb(var(--color-primary-700)) !important;
+}
+
+/* Hover de los items del sidebar */
+aside a:hover {
+    background-color: rgb(var(--color-primary-50) / 0.6) !important;
+}
+aside a:hover .material-symbols-outlined {
+    color: rgb(var(--color-primary-700)) !important;
+}
+
+/* Etiquetas de seccion del sidebar: en mayusculas, mas legibles */
+aside h2 {
+    color: rgb(var(--color-base-700)) !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    font-size: 0.7rem !important;
+}
+
+/* Logo / cabecera */
+header h1, header h2 {
+    color: rgb(var(--color-primary-700)) !important;
+}
+
+/* Botones primarios — verde corporativo */
+.button, button[type="submit"], .submit-row input[type="submit"] {
+    background-color: rgb(var(--color-primary-500)) !important;
+    color: white !important;
+}
+.button:hover, button[type="submit"]:hover {
+    background-color: rgb(var(--color-primary-600)) !important;
+}
