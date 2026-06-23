@@ -765,3 +765,82 @@ se crea/elimina por migración de datos `0016_grupo_evaluador`.
   trabajo se hace en vistas, plantillas, admin, URLs, settings y estáticos.
 - Con `DEBUG=False`, WhiteNoise exige `collectstatic`.
 - `manage.py` se ejecuta desde la carpeta `mag/`.
+
+---
+
+# Parte VI — Despliegue (Railway) y errores frecuentes
+
+El proyecto se despliega en **Railway**, que instala las dependencias con `uv` a partir de
+`pyproject.toml` + `uv.lock` y luego ejecuta el comando de inicio.
+
+## Comando de inicio
+
+```bash
+cd mag && uv run manage.py collectstatic --noinput && gunicorn mag.wsgi:application --bind 0.0.0.0:$PORT
+```
+
+Tres detalles que **deben** ir así:
+
+- **`mag.wsgi:application`** (dos puntos, no punto). Gunicorn espera `módulo:variable`. El
+  módulo es `mag/wsgi.py` y la variable es `application = get_wsgi_application()`. Si se
+  escribe `mag.wsgi.application` (con punto), gunicorn intenta importar un módulo llamado
+  `mag.wsgi.application` que no existe → el arranque falla.
+- **`collectstatic --noinput`**. `collectstatic` copia todos los estáticos (CSS/JS de la
+  app, del admin de Django y de Unfold) a `STATIC_ROOT`, desde donde WhiteNoise los sirve.
+  Cuando esa carpeta ya tiene archivos, Django **pregunta por teclado** (`Are you sure you
+  want to do this? Type 'yes'...`) y se queda esperando. En un deploy no hay terminal
+  interactiva, así que se cuelga o aborta. `--noinput` asume "sí" y no pregunta — es la
+  forma estándar para deploys/CI. En local no se notaba porque ahí sí se puede escribir `yes`.
+- **`$PORT`**. Railway inyecta el puerto por variable de entorno; hay que enlazar a
+  `0.0.0.0:$PORT`, no a un puerto fijo.
+
+## Error resuelto: `pg_config executable not found` (build de psycopg2)
+
+**Síntoma** (en el log de build, fase de instalación de dependencias — *antes* de arrancar
+la app):
+
+```
+× Failed to build `psycopg2==2.9.12`
+  Error: pg_config executable not found.
+  ... please install the PyPI 'psycopg2-binary' package instead.
+```
+
+**Causa.** `pyproject.toml` pedía `psycopg2` (a secas), que se distribuye **como código
+fuente C** y se compila al instalar. La compilación necesita la herramienta `pg_config` y
+las cabeceras de desarrollo de PostgreSQL, que la imagen de build de Railway no trae → el
+wheel no compila y se cae todo el deploy.
+
+**Solución aplicada.** Se **eliminó `psycopg2` de `pyproject.toml`** (y se regeneró
+`uv.lock` con `uv lock` → *Removed psycopg2 v2.9.12*). No hacía falta: el proyecto ya usa
+**`psycopg[binary]`** (psycopg **v3**, el sucesor de psycopg2, con binario precompilado),
+que Django 5.2 reconoce de forma nativa. `psycopg2` estaba duplicado y la app nunca lo
+importaba (`grep psycopg2` en el código → 0 resultados).
+
+> Alternativa equivalente si en algún momento se necesitara psycopg2: usar
+> `psycopg2-binary` (trae el `.so` precompilado y no requiere `pg_config`). Pero teniendo
+> psycopg v3 no aporta nada.
+
+## Variables de entorno en Railway
+
+`mag/.env` está en `.gitignore`, así que **sus valores no viajan al deploy**. Hay que
+cargarlos como variables de entorno del servicio en Railway:
+
+- `DATABASE_URL` — cadena de conexión a la BD (la lee `dj-database-url` en settings).
+- `SECRET_KEY` — clave de Django para producción.
+- `DEBUG=False`.
+- `ALLOWED_HOSTS` — debe incluir el dominio público de Railway
+  (`*.up.railway.app` correspondiente).
+
+## Recomendación de seguridad (rotación de credenciales)
+
+Si en algún momento la `SECRET_KEY` o la contraseña de la base de datos quedan expuestas
+(por compartir el `.env`, pegarlas en un chat, subirlas por error al repo, etc.), hay que
+**rotarlas**:
+
+- **Contraseña de Postgres/Supabase:** cambiarla en el proveedor y actualizar
+  `DATABASE_URL` en Railway.
+- **`SECRET_KEY`:** generar una nueva y cargarla en Railway. Una clave con el prefijo
+  `django-insecure-` es la autogenerada por `startproject` y **no** debe usarse en
+  producción.
+- Nunca versionar secretos: viven solo en `mag/.env` (local, ignorado) y en las variables
+  de entorno del servicio (producción).
