@@ -27,8 +27,9 @@ ModeloEvaluacion (versión)          ← el "molde" de la evaluación
                      └── Criterio (rangos de referencia, texto)
 
 Dependencia ──< DependenciaModelo >── ModeloEvaluacion   ← qué molde aplica a cada quién
-Periodo                                                  ← cuándo se evalúa
-Evaluacion = (Periodo + Dependencia + Modelo congelado)
+Categoria                                                ← clasificación de dependencias (pivote del dashboard)
+Periodo (vigencia=año, umbral=objetivo %)                ← cuándo se evalúa
+Evaluacion = (Periodo + Dependencia + Modelo congelado + Categoria congelada)
    └── EvaluacionResultado            (puntaje/ponderación por Subindicador)
          └── EvaluacionResultadoDetalle  (un valor por mes; solo cálculo "mensual")
 ```
@@ -67,6 +68,22 @@ class ModeloEvaluacion(Fechas):
 ### `Dependencia`
 La **entidad evaluada** (secretaría, oficina, etc.). Solo guarda `nombre`. Es una
 entidad **permanente**: las evaluaciones apuntan a ella directamente.
+
+> Nota: la **clasificación** de la dependencia (su `Categoria`) **no** vive aquí. Se
+> guarda en cada `Evaluacion` (FK `Evaluacion.categoria`) para poder *versionarla*: una
+> dependencia puede haber pertenecido a otra categoría en la v1 (Excel) y a una distinta
+> en la v2 del sistema, y cada evaluación conserva la que tenía en ese momento.
+
+### `Categoria`
+Clasificación de dependencias (p. ej. "Secretarías", "Institutos", "Entes de control").
+Campos: `orden` y `nombre`. Es el **pivote del dashboard/reporte**: las pestañas/selector
+superior cambian de categoría y toda la analítica se agrupa por ella (ver Parte II, paso 8).
+
+```python
+class Categoria(Fechas):
+    orden  = models.IntegerField(null=True)
+    nombre = models.CharField(max_length=50)
+```
 
 ### `DependenciaModelo` — el puente
 Tabla intermedia (*junction*) entre `Dependencia` y `ModeloEvaluacion`. Responde a la
@@ -130,22 +147,29 @@ Tabla de **rangos de referencia** del subindicador (texto). No se diligencia; or
 evaluador sobre qué puntaje asignar. Campos: `orden`, `nombre` (texto), `rango` (texto).
 
 ### Catálogos de nombres
-`PilarCategoria`, `IndicadorCategoria`, `SubindicadorCategoria` (y `Categoria` auxiliar):
-listas reutilizables de nombres. Por eso `Pilar.nombre` no es texto sino una FK — permite
-reutilizar y renombrar nombres sin tocar cada fila.
+`PilarCategoria`, `IndicadorCategoria`, `SubindicadorCategoria`: listas reutilizables de
+nombres. Por eso `Pilar.nombre` no es texto sino una FK — permite reutilizar y renombrar
+nombres sin tocar cada fila. (No confundir con `Categoria`, descrita arriba, que clasifica
+dependencias y es el pivote del dashboard.)
 
 ## 2. Modelos de operación
 
 ### `Periodo`
-La ventana temporal. Dos flags con semántica distinta:
+La ventana temporal. Dos flags con semántica distinta y dos campos numéricos de apoyo:
 
 ```python
 class Periodo(Fechas):
-    orden   = models.IntegerField(null=True)
-    nombre  = models.CharField(max_length=100)
-    activo  = models.BooleanField(default=True)    # abre/cierra el diligenciamiento
-    publico = models.BooleanField(default=False)   # visible en el reporte público
+    orden    = models.IntegerField(null=True)
+    vigencia = models.PositiveIntegerField(null=True)            # año (filtro por vigencia)
+    nombre   = models.CharField(max_length=100)
+    umbral   = models.DecimalField(max_digits=4, decimal_places=2, null=True)  # objetivo % del ranking
+    activo   = models.BooleanField(default=True)    # abre/cierra el diligenciamiento
+    publico  = models.BooleanField(default=False)   # visible en el reporte público
 ```
+
+- `vigencia` es el **año** del periodo; alimenta el filtro "Vigencia" del dashboard.
+- `umbral` es el **objetivo (%)** que se dibuja como línea de meta en el **ranking**; si se
+  deja vacío, no se muestra línea de objetivo (antes era una constante fija de 40%).
 
 ### `Evaluacion`
 El **hecho histórico**: una dependencia evaluada en un periodo, con un modelo **congelado**.
@@ -155,6 +179,8 @@ class Evaluacion(Fechas):
     periodo           = models.ForeignKey(Periodo, on_delete=models.CASCADE)
     dependencia       = models.ForeignKey(Dependencia, on_delete=models.CASCADE)
     modelo_evaluacion = models.ForeignKey(ModeloEvaluacion, on_delete=models.CASCADE)
+    categoria         = models.ForeignKey(Categoria, on_delete=models.CASCADE,
+                                          null=True, blank=False)   # clasificación congelada
 
     class Meta:
         constraints = [
@@ -175,6 +201,10 @@ class Evaluacion(Fechas):
 - Guarda `dependencia` **y** `modelo_evaluacion` por separado (no un FK al puente). Es
   **desnormalización deliberada** (patrón *snapshot*): la evaluación queda autónoma y el
   histórico no se rompe si luego se reasigna o borra la fila de `DependenciaModelo`.
+- `categoria` aplica el **mismo patrón snapshot** a la clasificación: se elige al crear la
+  evaluación y queda congelada (reclasificar la dependencia no altera el histórico). Es la
+  dimensión por la que se agrupa el dashboard. Es **obligatoria al crear** (`blank=False`):
+  como `Evaluacion.save()` corre `full_clean()`, crear sin categoría lanza `ValidationError`.
 - `UniqueConstraint(periodo, dependencia)` → no dos evaluaciones de la misma dependencia
   en el mismo periodo.
 - `clean()` + `save()` → el `modelo_evaluacion` es **inmutable** una vez creado.
@@ -375,6 +405,7 @@ Vista: **`EvaluacionCreateView.form_valid`**.
 ```python
 periodo     = form.cleaned_data["periodo"]
 dependencia = form.cleaned_data["dependencia"]
+categoria   = form.cleaned_data["categoria"]                  # clasificación elegida (obligatoria)
 
 if Evaluacion.objects.filter(periodo=periodo, dependencia=dependencia).exists():   # → SELECT EXISTS
     form.add_error(None, "Ya existe una evaluacion para esa combinación…")
@@ -392,8 +423,13 @@ with transaction.atomic():
     self.object = Evaluacion.objects.create(                  # → INSERT (pasa por save()→full_clean())
         periodo=periodo, dependencia=dependencia,
         modelo_evaluacion=asignacion.modelo,                  # COPIA el modelo (snapshot)
+        categoria=categoria,                                  # CONGELA la clasificación
     )
 ```
+
+El formulario (`EvaluacionCreateView.fields`) pide `periodo`, `dependencia` y `categoria`.
+El `modelo_evaluacion` no se pide: se **deriva** del `DependenciaModelo` activo. La
+`categoria`, en cambio, sí la elige el usuario y queda congelada en la evaluación.
 
 Detrás de cámara:
 
@@ -601,13 +637,22 @@ queries: todo sale de lo precargado en 7.a. Los valores se pasan como `str(...)`
 Para nuestra Secretaría, el total del periodo es la **suma de ponderaciones**:
 `4.32 (directo) + 2.88 (mensual) = 7.20`.
 
-La función que lo calcula para todas las dependencias:
+La función que lo calcula para todas las dependencias. **El pivote es la `categoria`**
+(no el modelo); el modelo es un **filtro de versión** opcional. El helper `_eval_kwargs`
+arma el filtro común a nivel de `Evaluacion`:
 
 ```python
-def _puntajes_por_dependencia(modelo, periodo, pilar=None):
+def _eval_kwargs(categoria, modelo):
+    kw = {}
+    if categoria is not None:
+        kw["evaluacion__categoria"] = categoria            # pivote (snapshot en Evaluacion)
+    if modelo is not None:
+        kw["evaluacion__modelo_evaluacion"] = modelo       # filtro de versión
+    return kw
+
+def _puntajes_por_dependencia(categoria, modelo, periodo, pilar=None):
     qs = EvaluacionResultado.objects.filter(
-        evaluacion__modelo_evaluacion=modelo,          # JOIN a Evaluacion + filtro
-        evaluacion__periodo=periodo)
+        evaluacion__periodo=periodo, **_eval_kwargs(categoria, modelo))   # JOIN a Evaluacion + filtros
     if pilar is not None:
         qs = qs.filter(subindicador__indicador__pilar=pilar)   # JOIN de 3 saltos
     filas = (qs.values("evaluacion__dependencia", "evaluacion__dependencia__nombre")
@@ -618,24 +663,33 @@ def _puntajes_por_dependencia(modelo, periodo, pilar=None):
 
 Detrás de cámara:
 
-- **`evaluacion__modelo_evaluacion=modelo`** — el doble guion bajo `__` **atraviesa la
-  FK**: Django añade un `JOIN` a `contenido_evaluacion` y filtra por
-  `evaluacion.modelo_evaluacion_id`. `subindicador__indicador__pilar=pilar` encadena
-  **tres** JOINs (subindicador→indicador→pilar).
+- **`evaluacion__categoria=categoria`** — el doble guion bajo `__` **atraviesa la FK**:
+  Django añade un `JOIN` a `contenido_evaluacion` y filtra por `evaluacion.categoria_id`
+  (y, si se pasó, también por `evaluacion.modelo_evaluacion_id`).
+  `subindicador__indicador__pilar=pilar` encadena **tres** JOINs (subindicador→indicador→pilar).
 - **`.values("evaluacion__dependencia", "...__nombre")`** — proyecta solo esas columnas y
   cambia la consulta a "modo diccionario"; combinado con `annotate`, define el `GROUP BY`.
 - **`.annotate(total=Sum("ponderacion"))`** — agrega `SUM(ponderacion)` **agrupando** por
   las columnas de `values()`. Resultado: una fila por dependencia con su total.
 
-Otras funciones del reporte siguen el mismo patrón:
+Otras funciones del reporte siguen el mismo patrón (todas reciben `categoria, modelo`):
 - **`_promedios_por_pilar`** suma por (pilar, dependencia) y luego **promedia entre
   dependencias** (`suma / n` en Python).
 - **`_ranking`** ordena por total descendente (1 = mejor).
-- **`_imag_max`** → `Pilar.objects.filter(modelo_evaluacion=modelo).aggregate(Sum("peso"))`.
+- **`_imag_max(dash)`** → suma los **pesos de los pilares presentes** en el tablero (ya no
+  consulta el modelo, para no depender de una versión concreta).
+- **`_periodos_con_datos(categoria, modelo, vigencia, …)`** → periodos con datos para ese
+  alcance; `vigencia` (año) los acota opcionalmente.
 
 > **Nota de negocio (pendiente):** hoy solo participa el **peso del Subindicador** en
 > `ponderacion`. Los pesos de Indicador y Pilar existen pero **no** se aplican (ver
 > comentario en `views.py`). Cambiarlo afectaría todos los agregados.
+
+**Filtros del dashboard/reporte (4 vistas):** `categoria` (pivote, pestañas/selector),
+`modelo` (**versión**; siempre hay una seleccionada, por defecto la activa, sin opción
+"todas" porque cada versión tiene su propia estructura de pilares), `vigencia` (año,
+opcional), `periodo`, `comparar` y `pilar` (+`dependencia` en Desempeño). El objetivo del
+**ranking** sale de `Periodo.umbral` (Parte I).
 
 El **reporte público** (`/reporte/`) llama estas funciones con `solo_publicos=True` (solo
 periodos `publico=True`); el **dashboard interno** (`/dashboard/`, con login) las llama con

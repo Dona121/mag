@@ -38,6 +38,7 @@ modelo_alta_gerencia/
 │   ├── templates/            # base/, reporte/, evaluaciones/, periodos/, modelos/, registration/
 │   └── static/               # css/, logos/, vendor/
 ├── DOCUMENTACION.md          # documentación funcional y técnica detallada
+├── NOTAS_TECNICAS.md         # modelos, flujo paso a paso, glosario del ORM y despliegue
 ├── GUIA_DISEÑO.md            # sistema de diseño (paleta, tipografía, componentes)
 ├── requirements.txt
 └── README.md
@@ -117,8 +118,9 @@ Para un evaluador del equipo: agréguelo al grupo **Evaluador** y asígnele sus 
 ## Convenciones clave
 
 - **La base de datos es fija**: el desarrollo toca solo vistas, plantillas, admin, URLs, settings y estáticos (no `models.py`, salvo decisión explícita).
-- **Jerarquía:** `ModeloEvaluacion → Pilar → Indicador → Subindicador → Criterio`; operación con `Dependencia`, `Periodo`, `Evaluacion`, `EvaluacionResultado` (+ detalle mensual).
-- **`Periodo.activo`** controla la disponibilidad de diligenciamiento; **`Periodo.publico`** controla la visibilidad en el reporte público.
+- **Jerarquía:** `ModeloEvaluacion → Pilar → Indicador → Subindicador → Criterio`; operación con `Dependencia`, `Categoria`, `Periodo`, `Evaluacion`, `EvaluacionResultado` (+ detalle mensual).
+- **`Periodo.activo`** controla la disponibilidad de diligenciamiento; **`Periodo.publico`** controla la visibilidad en el reporte público; **`Periodo.vigencia`** (año) alimenta el filtro por año y **`Periodo.umbral`** es el objetivo (%) del ranking.
+- **Pivote del dashboard/reporte = `Categoria`** (clasificación de la dependencia, **congelada en `Evaluacion.categoria`** al crearla). Las 4 vistas se filtran además por **versión del modelo** y por **vigencia (año)**.
 - **Ponderación:** `EvaluacionResultado.ponderacion = puntaje × peso_subindicador / 100`; agrega subindicador → (suma) dependencia → (promedio) pilar → (suma) IMAG. Hoy solo pesa el subindicador (los pesos de Indicador/Pilar no cascadean: decisión de negocio pendiente).
 
 ---
@@ -126,4 +128,5 @@ Para un evaluador del equipo: agréguelo al grupo **Evaluador** y asígnele sus 
 ## Documentación
 
 - **`DOCUMENTACION.md`** — documentación funcional y técnica detallada (frontend, flujo de datos, ponderación, URLs, bitácora).
+- **`NOTAS_TECNICAS.md`** — descripción de cada modelo, ejemplo guiado de punta a punta, glosario del ORM (qué hace cada operador), localización de decimales y guía de despliegue en Railway.
 - **`GUIA_DISEÑO.md`** — sistema de diseño reutilizable (paleta institucional, tipografía Montserrat, componentes, logos) basado en el Manual de Identidad.

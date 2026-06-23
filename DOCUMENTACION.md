@@ -173,11 +173,17 @@ ModeloEvaluacion  (versionado; uno activo)
 ### Operación
 
 - **Dependencia** y **DependenciaModelo**: asignan qué modelo evalúa cada
-  dependencia. Constraint: **un solo modelo activo por dependencia**.
+  dependencia. Constraint: **un solo modelo activo por dependencia**. La dependencia ya
+  **no** guarda su categoría (ver `Categoria`).
+- **Categoria**: clasificación de dependencias (p. ej. "Secretarías", "Institutos"). Es
+  el **pivote del dashboard/reporte**. Se elige al crear cada evaluación y queda
+  **congelada** en `Evaluacion.categoria` (snapshot, así se versiona).
 - **Periodo**: si su nombre incluye meses ("Enero - Febrero - Marzo"), el
-  diligenciamiento mensual mostrará solo esos meses.
-- **Evaluacion**: única por `(periodo, dependencia)`. Fija el modelo al crearse y
-  **no se puede cambiar** después (validado en `clean()`).
+  diligenciamiento mensual mostrará solo esos meses. Campos de apoyo: **`vigencia`** (año,
+  filtro del dashboard) y **`umbral`** (objetivo % del ranking; vacío = sin línea de meta).
+- **Evaluacion**: única por `(periodo, dependencia)`. Fija el **modelo** y la **categoría**
+  al crearse; el modelo **no se puede cambiar** después (validado en `clean()`). La
+  categoría es **obligatoria** al crear (`blank=False`, validado por `full_clean()`).
 - **EvaluacionResultado**: puntaje/ponderación consolidados por subindicador
   (único por `evaluacion + subindicador`).
 - **EvaluacionResultadoDetalle**: desglose por mes (subindicadores "mensual").
@@ -243,8 +249,9 @@ Toda entrada decimal (peso, puntaje) se valida con el helper
 4. **Asignar indicadores** a cada usuario evaluador (`PerfilUsuario` en el admin) y,
    si solo debe diligenciar, agregarlo al **grupo `Evaluador`** (ver Permisos y roles).
 5. **Crear una Evaluacion** (`EvaluacionCreateView`): se elige periodo +
-   dependencia y el sistema toma automáticamente el **modelo activo** de esa
-   dependencia. Valida que no exista ya `(periodo, dependencia)`.
+   dependencia + **categoría** (obligatoria, queda congelada en la evaluación) y el
+   sistema toma automáticamente el **modelo activo** de esa dependencia. Valida que no
+   exista ya `(periodo, dependencia)`.
 6. **Diligenciar** (`evaluacion_diligenciar`): se renderiza la matriz
    Pilar → Indicador → Subindicador. Cada usuario edita solo lo permitido.
 
@@ -290,7 +297,7 @@ los 12.
 | `/dashboard/variaciones/` | `dashboard_variaciones` | Dashboard interno — vista Variaciones |
 | `/reporte/` | `reporte_publico` | **Reporte público (sin login)** — vista IMAG |
 | `/reporte/desempeno/` | `reporte_desempeno` | Reporte público — vista Desempeño (por dependencia) |
-| `/reporte/ranking/` | `reporte_ranking` | Reporte público — vista Ranking (Categoría = Modelo) |
+| `/reporte/ranking/` | `reporte_ranking` | Reporte público — vista Ranking (pestañas por Categoría) |
 | `/reporte/variaciones/` | `reporte_variaciones` | Reporte público — vista Variaciones |
 | `/auth/login/` | `LoginView` | Inicio de sesión (template rediseñado) |
 | `/auth/logout/` | `LogoutView` | Cierre de sesión |
@@ -336,8 +343,8 @@ un botón **"Ver reporte público"** que abre la vista pública equivalente.
 > (`dashboard_datos` / `dashboard_dependencia_datos`). Las vistas nuevas inyectan los
 > datos inline con `{{ payload|json_script }}` (sin `fetch`).
 
-Mapeo Excel/Power BI → modelos en `Mapeo_Dashboard_Django.md`; esquema de modelos
-en `MODELOS.md`.
+Mapeo Excel/Power BI → modelos en `consulta/Mapeo_Dashboard_Django.md`; descripción
+detallada de cada modelo y del flujo en `NOTAS_TECNICAS.md`.
 
 ### Base de los cálculos
 
@@ -357,13 +364,17 @@ la única diferencia es que el dashboard interno **no aplica el filtro `publico`
 todos los periodos). En resumen:
 - **IMAG:** KPIs del IMAG (último %, anterior, variación) + evolución por pilar + tabla.
 - **Desempeño:** por dependencia, puntaje vs. objetivo + *small-multiples* por pilar.
-- **Ranking:** ranking de dependencias (Categoría = Modelo) contra el objetivo.
+- **Ranking:** ranking de dependencias por **Categoría** contra el objetivo (`Periodo.umbral`).
 - **Variaciones:** Δ por dependencia vs. periodo anterior + mejor/peor.
 
 ### Filtros (server-side, vía GET)
 
-- modelo, periodo, comparar (`0` = ninguno), pilar; Desempeño añade dependencia.
-- Helpers `_resolver`, `_periodos_con_datos(modelo, solo_publicos)`, `_reporte_filtros`,
+- **categoria** (pivote), **modelo** (versión; por defecto la activa, sin opción "todas"),
+  **vigencia** (año, opcional), periodo, comparar (`0` = ninguno), pilar; Desempeño añade
+  dependencia.
+- La agregación filtra por `evaluacion__categoria` + `evaluacion__modelo_evaluacion`
+  (helper `_eval_kwargs`). Helpers `_resolver`,
+  `_periodos_con_datos(categoria, modelo, vigencia, solo_publicos)`, `_reporte_filtros`,
   `_resolver_dependencia_contexto`. Parámetros inválidos caen al valor por defecto.
 
 ### Gráficos (Chart.js)
@@ -400,7 +411,9 @@ grises). El semáforo del modelo (verde/ámbar/rojo) codifica los datos.
 ### Las cuatro vistas (pestañas)
 
 Replican las láminas del Power BI. El **"Indicador" del Power BI = `Pilar`** del
-modelo; las **"Categorías" (Categoría 1/2/3/Gobernación) = `ModeloEvaluacion`**.
+modelo; las **"Categorías" = `Categoria`** (modelo real que clasifica dependencias,
+**congelado en `Evaluacion.categoria`**). El pivote del tablero es la categoría; la
+**versión del modelo** y la **vigencia (año)** son filtros adicionales.
 
 1. **IMAG** (`reporte_publico`, `/reporte/`) — KPIs de IMAG (último %, anterior %,
    variación en puntos), evolución del **% de cumplimiento por pilar**
@@ -409,8 +422,9 @@ modelo; las **"Categorías" (Categoría 1/2/3/Gobernación) = `ModeloEvaluacion`
    KPIs del puntaje del periodo contra **objetivo 60 %** (con la brecha) y
    **small-multiples**: una mini-gráfica de evolución por cada pilar.
 3. **Ranking** (`reporte_ranking`, `/reporte/ranking/`) — fila de pestañas de
-   **Categoría = Modelo**; barras por dependencia (mejor en verde + **línea de
-   objetivo 40 %**) y tabla *Dependencia | Puntaje* con sombreado azul, ordenada.
+   **Categoría**; barras por dependencia (mejor en verde + **línea de objetivo =
+   `Periodo.umbral`**, antes constante 40 %) y tabla *Dependencia | Puntaje* con
+   sombreado azul, ordenada. Si el periodo no tiene `umbral`, no se dibuja la línea.
 4. **Variaciones** (`reporte_variaciones`, `/reporte/variaciones/`) — KPIs
    (mejor/peor variación y mejor/peor desempeño), tabla *Dependencia | Anterior |
    Último | Variación* con sombreado verde/rojo y barras horizontales de variación.
@@ -418,16 +432,16 @@ modelo; las **"Categorías" (Categoría 1/2/3/Gobernación) = `ModeloEvaluacion`
 ### Cálculos y filtros
 
 - Reutiliza los **mismos helpers** del dashboard interno (`_datos_dashboard`,
-  `_serie_temporal`, `_datos_dependencia`, `_serie_dependencia`, `_imag_max`,
+  `_serie_temporal`, `_datos_dependencia`, `_serie_dependencia`, `_imag_max(dash)`,
   `_estado_semaforo`, `_shade` para el sombreado de tablas). Todo en puntos/%.
-- Filtros **server-side (GET)**, auto-submit: modelo, periodo, comparar, pilar
-  (y dependencia en Desempeño). Helper compartido `_reporte_filtros` /
-  `_ctx_filtros`. Parámetros inválidos caen al valor por defecto.
+- Filtros **server-side (GET)**, auto-submit: **categoria, modelo (versión), vigencia
+  (año)**, periodo, comparar, pilar (y dependencia en Desempeño). Helper compartido
+  `_reporte_filtros` / `_ctx_filtros`. Parámetros inválidos caen al valor por defecto.
 - **Gráficos con Chart.js** vendorizado; los datos se inyectan inline con
   `{{ payload|json_script }}` (no hay endpoint AJAX aparte). Anchos/sombras usan
   `|unlocalize` (locale `es-col` mete coma decimal).
-- Los **objetivos 60 % (Desempeño) y 40 % (Ranking)** son constantes que replican
-  el Power BI; si deben venir de la BD o variar por modelo, se parametrizan.
+- El **objetivo del Ranking** ya viene de la BD (`Periodo.umbral`, variable por periodo);
+  el de **Desempeño sigue constante en 60 %** (parametrizar si debe venir de la BD).
 
 ### Visibilidad pública (`Periodo.publico`)
 
