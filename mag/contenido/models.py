@@ -13,6 +13,17 @@ class Fechas(models.Model):
     class Meta:
         abstract = True
 
+class Categoria(Fechas):
+    orden = models.IntegerField(null=True, verbose_name="Orden")
+    nombre = models.CharField(max_length=50, verbose_name="Nombre Categoría")
+
+    class Meta:
+        verbose_name = "Categoría"
+        verbose_name_plural = "Categorías"
+
+    def __str__(self):
+        return f"{self.nombre}"
+
 
 class ModeloEvaluacion(Fechas):
     nombre = models.CharField(max_length=150, verbose_name="Nombre Modelo")
@@ -26,20 +37,8 @@ class ModeloEvaluacion(Fechas):
     def __str__(self):
         return f"{self.nombre}"
 
-
-class Categoria(Fechas):
-    orden = models.IntegerField(null=True, verbose_name="Orden")
-    nombre = models.CharField(max_length=50, verbose_name="Nombre Categoría")
-
-    class Meta:
-        verbose_name = "Categoría"
-        verbose_name_plural = "Categorías"
-
-    def __str__(self):
-        return f"{self.nombre}"
-
-
 class Dependencia(Fechas):
+    categoria = models.ForeignKey(Categoria,on_delete=models.CASCADE, null=True,blank=False)
     nombre = models.CharField(max_length=150, verbose_name="Dependencia")
 
     class Meta:
@@ -177,6 +176,7 @@ class Criterio(Fechas):
 class Periodo(Fechas):
     orden = models.IntegerField(null=True, verbose_name="Orden")
     nombre = models.CharField(max_length=100, verbose_name="Periodo")
+    umbral = models.DecimalField(max_digits=4,decimal_places=2, null=True, blank=False)
     activo = models.BooleanField(default=True)
     publico = models.BooleanField(default=False)
 

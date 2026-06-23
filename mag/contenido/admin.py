@@ -133,10 +133,12 @@ class CategoriaAdmin(ModelAdmin):
 
 @admin.register(Dependencia)
 class DependenciaAdmin(ModelAdmin):
-    list_display = ("nombre", "creado_en")
+    list_display = ("nombre", "categoria", "creado_en")
+    list_filter = ("categoria",)
     search_fields = ("nombre",)
+    autocomplete_fields = ("categoria",)
     ordering = ("nombre",)
-    fieldsets = (("Dependencia", {"fields": ("nombre",)}),)
+    fieldsets = (("Dependencia", {"fields": ("categoria", "nombre")}),)
 
 
 @admin.register(DependenciaModelo)
@@ -240,7 +242,7 @@ class CriterioAdmin(ModelAdmin):
 
 @admin.register(Periodo)
 class PeriodoAdmin(ModelAdmin):
-    list_display = ("orden", "nombre", "activo", "publico", "creado_en")
+    list_display = ("orden", "nombre", "umbral", "activo", "publico", "creado_en")
     list_filter = ("activo", "publico")
     list_editable = ("activo", "publico")
     search_fields = ("nombre",)
@@ -253,7 +255,7 @@ class PeriodoAdmin(ModelAdmin):
         (
             "Periodo",
             {
-                "fields": ("orden", "nombre", "activo", "publico"),
+                "fields": ("orden", "nombre", "umbral", "activo", "publico"),
                 "description": "Tip: incluya en el nombre los meses del periodo "
                 "(p.ej. 'Enero - Febrero - Marzo') para que el "
                 "diligenciamiento de subindicadores mensuales muestre "
@@ -262,7 +264,9 @@ class PeriodoAdmin(ModelAdmin):
                 "«Público» controla la visibilidad en el reporte público "
                 "(/reporte/): mientras esté en falso, los datos del periodo "
                 "no se ven afuera aunque ya estén diligenciados; el dashboard "
-                "interno los muestra siempre.",
+                "interno los muestra siempre. «Umbral» es el objetivo (%) que se "
+                "dibuja como línea de meta en el ranking del dashboard; si se deja "
+                "vacío, no se muestra línea de objetivo.",
             },
         ),
     )

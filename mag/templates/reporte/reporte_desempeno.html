@@ -13,14 +13,14 @@
 {% endblock %}
 
 {% block toolbar %}
-{% if modelos %}
+{% if categorias %}
 <div class="d-toolbar">
   <div class="r-wrap">
     <form method="get" class="d-filtros">
-      {% if modelos|length > 1 %}
-      <div class="d-f"><label for="f-modelo">Modelo</label>
-        <select id="f-modelo" name="modelo" onchange="this.form.submit()">
-          {% for m in modelos %}<option value="{{ m.pk }}" {% if sel_modelo and m.pk == sel_modelo.pk %}selected{% endif %}>{{ m }}{% if m.activo %} ·activo{% endif %}</option>{% endfor %}
+      {% if categorias %}
+      <div class="d-f"><label for="f-categoria">Categoría</label>
+        <select id="f-categoria" name="categoria" onchange="this.form.submit()">
+          {% for c in categorias %}<option value="{{ c.pk }}" {% if sel_categoria and c.pk == sel_categoria.pk %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select></div>
       {% endif %}
       <div class="d-f"><label for="f-dependencia">Dependencia</label>
@@ -53,7 +53,7 @@
 {% if vacio %}
 <main class="d-aviso">
   <h2>No hay resultados para esta dependencia</h2>
-  <p>{% if not dependencias %}{% if interno %}Aún no hay dependencias con evaluaciones para este modelo.{% else %}Aún no hay resultados publicados para este modelo (los datos aparecen cuando el periodo se marca como público).{% endif %}{% else %}La dependencia seleccionada todavía no tiene evaluaciones en este periodo. Ajusta los filtros.{% endif %}</p>
+  <p>{% if not dependencias %}{% if interno %}Aún no hay dependencias con evaluaciones para esta categoría.{% else %}Aún no hay resultados publicados para esta categoría (los datos aparecen cuando el periodo se marca como público).{% endif %}{% else %}La dependencia seleccionada todavía no tiene evaluaciones en este periodo. Ajusta los filtros.{% endif %}</p>
 </main>
 {% else %}
 <main class="d-main">

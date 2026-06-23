@@ -10,11 +10,11 @@
 {% block footer_extra %}{% if sel_pilar %}<div><span class="k">Indicador</span> · {{ sel_pilar }}</div>{% endif %}{% endblock %}
 
 {% block toolbar %}
-{% if modelos %}
+{% if categorias %}
 <div class="d-toolbar">
   <div class="r-wrap">
     <form method="get" class="d-filtros">
-      <input type="hidden" name="modelo" value="{% if sel_modelo %}{{ sel_modelo.pk }}{% endif %}">
+      <input type="hidden" name="categoria" value="{% if sel_categoria %}{{ sel_categoria.pk }}{% endif %}">
       <div class="d-f"><label for="f-periodo">Periodo</label>
         <select id="f-periodo" name="periodo" onchange="this.form.submit()" {% if not periodos %}disabled{% endif %}>
           {% for pp in periodos %}<option value="{{ pp.pk }}" {% if sel_periodo and pp.pk == sel_periodo.pk %}selected{% endif %}>{{ pp }}</option>{% empty %}<option>— sin datos —</option>{% endfor %}
@@ -33,12 +33,12 @@
 {% endblock %}
 
 {% block cuerpo %}
-{% if modelos|length > 1 %}
+{% if categorias %}
 <div class="d-cat">
   <div class="r-wrap">
     <nav class="d-cat-tabs">
-      {% for m in modelos %}
-      <a href="?modelo={{ m.pk }}" class="{% if sel_modelo and m.pk == sel_modelo.pk %}activo{% endif %}">{{ m }}</a>
+      {% for c in categorias %}
+      <a href="?categoria={{ c.pk }}" class="{% if sel_categoria and c.pk == sel_categoria.pk %}activo{% endif %}">{{ c }}</a>
       {% endfor %}
     </nav>
   </div>
@@ -48,7 +48,7 @@
 {% if vacio %}
 <main class="d-aviso">
   <h2>No hay resultados para esta categoría</h2>
-  <p>{% if not modelos %}Aún no se ha creado ningún modelo de evaluación.{% elif not periodos %}{% if interno %}Aún no hay periodos con evaluaciones para este modelo.{% else %}Aún no hay periodos publicados para este modelo. Los resultados aparecen cuando el periodo se marca como público.{% endif %}{% else %}Ajusta los filtros.{% endif %}</p>
+  <p>{% if not categorias %}Aún no se ha creado ninguna categoría.{% elif not periodos %}{% if interno %}Aún no hay periodos con evaluaciones para esta categoría.{% else %}Aún no hay periodos publicados para esta categoría. Los resultados aparecen cuando el periodo se marca como público.{% endif %}{% else %}Ajusta los filtros.{% endif %}</p>
 </main>
 {% else %}
 <main class="d-main">
@@ -56,14 +56,14 @@
 
     {% if mejor %}
     <p class="d-narr">
-      Durante <b>{{ periodo_actual }}</b>, para <b>{{ sel_modelo }}</b>, la dependencia con mejor puntaje fue
+      Durante <b>{{ periodo_actual }}</b>, para <b>{{ sel_categoria }}</b>, la dependencia con mejor puntaje fue
       <b>{{ mejor.dependencia }}</b> ({{ mejor.total|floatformat:2 }}%).
     </p>
     {% endif %}
 
     <section class="d-section d-rank-cols">
       <div class="d-card js-charts">
-        <p class="d-card-h"><span>Ranking por dependencia · {{ sel_modelo }}</span><span class="tag">objetivo {{ objetivo|floatformat:0 }}%</span></p>
+        <p class="d-card-h"><span>Ranking por dependencia · {{ sel_categoria }}</span>{% if objetivo is not None %}<span class="tag">objetivo {{ objetivo|floatformat:0 }}%</span>{% endif %}</p>
         <div class="d-chartrank"><canvas id="chartRank"></canvas></div>
       </div>
 
@@ -105,9 +105,11 @@ window.reporteCharts = function(){
   var labels=rows.map(function(r){ return r.dependencia; });
   var vals=rows.map(function(r){ return r.total; });
   var colors=rows.map(function(r){ return r.dependencia===DATA.mejor ? '#109d39' : '#5aa9d0'; });
-  var obj=DATA.objetivo||0;
-  // Plugin: línea de objetivo
+  var obj=DATA.objetivo;
+  // Plugin: línea de objetivo (umbral del periodo). Si el periodo no define umbral
+  // (obj null/0), no se dibuja la línea.
   var objLine={id:'objLine', afterDraw:function(ch){
+    if(obj===null || obj===undefined) return;
     var y=ch.scales.y.getPixelForValue(obj), a=ch.chartArea, ctx=ch.ctx;
     ctx.save(); ctx.strokeStyle='#d92a34'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
     ctx.beginPath(); ctx.moveTo(a.left,y); ctx.lineTo(a.right,y); ctx.stroke();
