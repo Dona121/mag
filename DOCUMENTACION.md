@@ -310,9 +310,10 @@ los 12.
 | `/evaluaciones/` | `EvaluacionListView` | Listado de evaluaciones (solo periodos activos) |
 | `/evaluaciones/nueva/` | `EvaluacionCreateView` | Crear evaluación (acceso por botón del listado, no por menú) |
 | `/evaluaciones/<pk>/diligenciar/` | `evaluacion_diligenciar` | Diligenciar matriz (bloqueada si el periodo está inactivo) |
-| `/periodos/` | `PeriodoListView` | Gestión de periodos (estado + activar/desactivar) |
+| `/periodos/` | `PeriodoListView` | Gestión de periodos (estado, vigencia, umbral, visibilidad) |
 | `/periodos/<pk>/activar/` | `periodo_activar` | Activar periodo — abre diligenciamiento (POST) |
 | `/periodos/<pk>/desactivar/` | `periodo_desactivar` | Desactivar periodo (POST) |
+| `/periodos/<pk>/umbral/` | `periodo_umbral_editar` | Formulario para crear/editar **vigencia (año)** y **umbral** (objetivo % del ranking) |
 | `/periodos/<pk>/publicar/` | `periodo_publicar` | Marcar `publico=True` — visible en reporte público (POST) |
 | `/periodos/<pk>/despublicar/` | `periodo_despublicar` | Marcar `publico=False` (POST) |
 | `/admin/` | django-unfold | Panel administrativo |
@@ -509,6 +510,13 @@ público, el reporte muestra el aviso correspondiente.
 8. **Filtro "Todas las categorías".** Nueva opción (sentinela `TODAS_CATEGORIAS`) en el selector
    de IMAG/Desempeño/Variaciones y como pestaña en Ranking: consolida todas las categorías para
    ver el **IMAG general** y sus indicadores.
+9. **Periodos: columnas Vigencia y Umbral + formulario.** La tabla de `/periodos/` muestra la
+   vigencia (año) y el umbral, con un botón Definir/Editar que abre `periodo_umbral_editar` para
+   crear/editar ambos (umbral vacío = sin meta del Ranking). Ver sección 10.
+10. **Total en vivo de la evaluación: sin redondear por fila.** En `evaluacion_diligenciar.html` el
+    JS guardaba la ponderación de cada fila redondeada a 2 decimales y sumaba eso, dando ~0.02 menos
+    que el dashboard. Ahora guarda el valor exacto en `data-exact` por fila y solo redondea el
+    **total** (coincide con el dashboard, que suma a 5 decimales y redondea al final).
 
 ---
 
@@ -527,8 +535,13 @@ cierra **todas sus evaluaciones** de una vez, sin borrar información.
   desplegable.
 - **Gestión (frontend)**: `PeriodoListView` (`/periodos/`, menú Operación)
   lista los periodos con badge Activo/Inactivo, conteo de evaluaciones y botones
-  **Activar/Desactivar** (POST). También se gestiona desde `PeriodoAdmin`
-  (filtro, edición en línea y acciones masivas).
+  **Activar/Desactivar** (POST). La tabla muestra además la **Vigencia** (año) y el
+  **Umbral**, con un botón **Definir/Editar** que abre un formulario
+  (`periodo_umbral_editar`, `/periodos/<pk>/umbral/`) para crear/editar ambos: la
+  vigencia (año, valida 1900–2200) y el umbral (objetivo % del ranking, 0–99.99; **vacío =
+  sin meta**, no se dibuja la línea en el Ranking). Usa `_parse_decimal` (coma o punto) y
+  guarda con `update_fields`. También se gestiona desde `PeriodoAdmin` (filtro, edición en
+  línea y acciones masivas).
 - Desactivar **no elimina** evaluaciones ni resultados; se mantiene el histórico
   completo y se vuelve a ver al reactivar.
 - **Convención**: toda consulta/funcionalidad nueva sobre evaluaciones asume
@@ -564,3 +577,77 @@ python mag/manage.py importar_v1 migracion/archivo.xlsx --commit
 > dependencia → categoría); las dependencias se agrupan por **estructura** y se crea un
 > `ModeloEvaluacion` (version=1) por estructura. Escala ×100, 5 decimales, normaliza nombres
 > y `tipo_calculo`. Detalle en `NOTAS_TECNICAS.md`.
+
+---
+
+## 12. Inconsistencias del Excel v1 (2025) y su corrección
+
+Durante la preparación del cargue del histórico v1 se detectaron varias inconsistencias en el
+Excel de origen (`estructura_modelo_version_1_2025.xlsx`). Se documentan aquí para trazabilidad.
+Se dividen en: (A) las que **se corrigieron en el Excel** (eran datos contradictorios que el
+importador no debe "adivinar") y (B) las que el **importador normaliza automáticamente** (ruido
+de digitación que no cambia el dato).
+
+> **Verificación final:** se comparó el Excel contra la base de datos — **740
+> `EvaluacionResultado` y 1.133 detalles mensuales**; los **puntajes** coinciden exactamente y no
+> hay filas sobrantes. Las **ponderaciones** cumplen `ponderación = puntaje × peso` (ver
+> resolución abajo); el escaneo global deja solo 3 diferencias de **0.01** por redondeo del peso
+> periódico `3.33333` (1/30), sin impacto real.
+
+> **Resolución de los ponderados (decisión 2026-06):** el importador **recalcula** la
+> ponderación = `puntaje × peso / 100` y **no usa la columna de ponderado del Excel** (que en
+> varias celdas estaba mal calculada: un mes con un peso distinto al del subindicador). Así el
+> dato queda coherente con el peso del catálogo y con lo que recalcula la pantalla de
+> evaluación. Esto corrige automáticamente los casos del grupo **A‑5** (p. ej. Bellas Artes pasó
+> de `20.00` a `3.00`). La reimportación usa `update_or_create`, así que sobrescribe los valores
+> ya cargados.
+
+### A. Corregidas en el Excel (por el equipo)
+
+1. **Pesos en cascada incoherentes dentro de una misma estructura.** Dependencias que comparten
+   estructura deben compartir pesos (el catálogo del modelo es único), y además debe cumplirse
+   que Σ indicadores = peso del pilar y Σ subindicadores = peso del indicador. Se corrigieron:
+   - **Interior** (estructura de Salud): indicadores `PIIP`, `Estratégicos`, `Aliados (Invisibles)`
+     estaban en `0.0667` y debían ser `0.05` (como Salud).
+   - **Oficina TIC** (estructura de Bellas Artes): indicador `PIIP` estaba en `0.20` y debía ser `0.05`.
+   - **Tránsito** (estructura de Unidad del Riesgo): indicador `Portafolio` (`0.25`→`0.20`) y
+     subindicadores `Tiempo` / `Información Completa` (`0.125`→`0.10`).
+2. **`criterio_rango` con el valor del peso en vez del descriptor.** En **Tránsito**, los
+   subindicadores `% de proyectos en ejecución suspendidos` y `% de Proyectos terminados sin liquidar`
+   tenían en la columna de rango el número del peso (`0.2`, `0.05`) en lugar de `0 - 100%`.
+3. **Typo en `tipo_calculo`.** En **Aguas de Sucre** (3 filas) decía `directo a paritr de septiembre`
+   ("paritr" → "partir").
+4. **Texto de `tipo_calculo` no estandarizado** entre dependencias de una misma estructura
+   (p. ej. `directo` vs `directo a partir de julio/septiembre`), que se unificó.
+5. **Ponderados que no correspondían a `puntaje × peso`.** En varias celdas el ponderado del
+   Excel se calculó con un peso equivocado (o quedó en 0/inflado): **Bellas Artes** % suspendidos
+   Nov-Dic (`20.00` → `3.00`), **Salud** % suspendidos Jul-Ago (`0.00` → `3.00`), **Fondo Mixto**
+   Eficacia/Eficiencia Jul-Ago (`16.00`/`4.00` → `15.50`/`3.50`) e **Indersucre** % sin liquidar
+   Sep-Oct (octubre usó 3 % en vez de 2 %). Se corrigieron en el Excel y, además, el importador
+   **recalcula** la ponderación (ver recuadro arriba), así que estos casos quedan resueltos por
+   definición; el escaneo final solo deja diferencias de redondeo de 0.01 por el peso 1/30.
+
+> **El Excel fuente también quedó limpio.** Además de normalizarse en el importador, el `.xlsx`
+> de origen se corrigió (typos y espacios al inicio/fin de los textos; nombres canónicos), dejando
+> un **único archivo** `migracion/estructura_modelo_version_1_2025.xlsx`. Las fórmulas (pesos y
+> ponderados calculados) se conservan; tras editar con openpyxl hay que **abrir y guardar en
+> Excel** una vez para repoblar los valores cacheados de las fórmulas.
+
+### B. Normalizadas automáticamente por el importador
+
+6. **Espacios sobrantes** al inicio/fin de nombres de pilar, indicador, subindicador y criterio
+   (p. ej. `"Ciclos de Gerencia "`, `" Cumplimiento de las metas"`, doble espacio final). → `strip()`
+   y colapso de espacios.
+7. **Espacios duros `\xa0`** (non-breaking space) dentro de criterios/observaciones. → reemplazados
+   por espacio normal.
+8. **Typos en nombres de subindicador:** `"...apalanca el cumplimeinto..."` → `cumplimiento`;
+   `"Cumplimento Acumulado..."` → `Cumplimiento`.
+9. **Variantes de nombre del mismo concepto** (nombres canónicos confirmados por el equipo):
+   `Mecanismos de Financiación` → **`Otros Mecanismos de Financiación`**; `Ciclo de Proyectos` →
+   **`Ciclos de Gerencia`**.
+10. **Dependencia duplicada por nombre:** la hoja **`Oficina TI`** corresponde a **`Oficina TIC`**
+   (misma dependencia); se importa con el nombre `Oficina TIC`.
+11. **`tipo_calculo` con descriptor temporal** (`directo a partir de julio/septiembre`) → se
+    normaliza a `directo` (el modelo solo admite `mensual`/`directo`; el matiz de "a partir de…"
+    ya queda reflejado en que esos meses traen un solo valor por bimestre).
+12. **Columna sobrante:** la hoja **Educación** traía una columna 31 vacía (sin efecto; se ignora).

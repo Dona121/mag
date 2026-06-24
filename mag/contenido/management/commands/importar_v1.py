@@ -16,9 +16,10 @@ Cada dependencia evaluó su propio subconjunto de pilares/indicadores/subindicad
 Se agrupan las dependencias por ESTRUCTURA idéntica (el árbol, tras normalizar
 nombres) y se crea un ModeloEvaluacion v1 por estructura.  El catálogo (pesos y
 criterios) de cada modelo se toma de la PRIMERA dependencia del grupo; las
-divergencias de pesos/criterios/tipo_calculo dentro del grupo se reportan.  Los
-resultados (puntaje/ponderación) se guardan directo de cada hoja, así que el dato
-histórico de cada dependencia queda exacto aunque el catálogo use la representativa.
+divergencias de pesos/criterios/tipo_calculo dentro del grupo se reportan.  El PUNTAJE
+se toma directo de cada hoja; la PONDERACIÓN se RECALCULA = puntaje × peso (no se usa la
+columna de ponderado del Excel, que tenía celdas mal calculadas), para que el dato quede
+coherente con el peso del subindicador y con la pantalla de evaluación.
 
 Todo lo numérico viene en fracción (0..1) y se guarda como porcentaje (x100),
 para igualar la convención ya presente en la BD (peso 30.00, puntaje 86.67, etc.).
@@ -194,7 +195,7 @@ def parsear_hoja(ws):
                 "peso": a_porcentaje(cel(6)),
                 "tipo_calculo": norm_tipo_calculo(cel(30)),
                 "criterios": [],
-                "resultados": _leer_resultados(ws, r),
+                "resultados": _leer_resultados(ws, r, a_porcentaje(cel(6))),
             }
             ind_act["subindicadores"].append(sub_act)
             orden_crit = 0
@@ -209,8 +210,24 @@ def parsear_hoja(ws):
     return CANON_DEPENDENCIA.get(dep, dep), pilares
 
 
-def _leer_resultados(ws, fila):
-    """Lee, para la fila ancla de un subindicador, sus resultados por periodo."""
+def _pond(puntaje, peso):
+    """Ponderación = puntaje × peso / 100 (5 decimales).
+
+    Se calcula SIEMPRE desde puntaje y peso del subindicador; NO se usa la columna de
+    ponderado del Excel, porque en varias celdas estaba mal calculada (p. ej. un mes con un
+    peso distinto al del subindicador). Así el dato queda coherente con el peso del catálogo
+    y con lo que recalcula la pantalla de evaluación.
+    """
+    return (puntaje * (peso or Decimal("0")) / Decimal("100")).quantize(
+        Q5, rounding=ROUND_HALF_UP
+    )
+
+
+def _leer_resultados(ws, fila, peso):
+    """Lee, para la fila ancla de un subindicador, sus resultados por periodo.
+
+    `peso` es el peso (%) del subindicador; la ponderación se recalcula con `_pond`.
+    """
     resultados = []
     for orden_p, nombre_p, meses, col_pond, col_obs in PERIODOS:
         detalles = []
@@ -219,12 +236,9 @@ def _leer_resultados(ws, fila):
             pon = ws.cell(fila, col_pon).value
             if pun is None and pon is None:
                 continue
+            punt = a_porcentaje(pun if pun is not None else 0)
             detalles.append(
-                {
-                    "mes": mes,
-                    "puntaje": a_porcentaje(pun if pun is not None else 0),
-                    "ponderacion": a_porcentaje(pon if pon is not None else 0),
-                }
+                {"mes": mes, "puntaje": punt, "ponderacion": _pond(punt, peso)}
             )
         pond_periodo = ws.cell(fila, col_pond).value
         if not detalles and pond_periodo is None:
@@ -239,7 +253,7 @@ def _leer_resultados(ws, fila):
                 "orden": orden_p,
                 "periodo": nombre_p,
                 "puntaje": puntaje,
-                "ponderacion": a_porcentaje(pond_periodo) or Decimal("0.00000"),
+                "ponderacion": _pond(puntaje, peso),
                 "observaciones": limpiar_obs(ws.cell(fila, col_obs).value),
                 "detalles": detalles,
             }
@@ -507,7 +521,9 @@ class Command(BaseCommand):
                         for s in i["subindicadores"]:
                             sub_obj = indice[(p["nombre"], i["nombre"], s["nombre"])]
                             for res in s["resultados"]:
-                                er, _ = EvaluacionResultado.objects.get_or_create(
+                                # update_or_create: al reimportar sobrescribe puntaje/
+                                # ponderacion (p. ej. ponderaciones recalculadas).
+                                er, _ = EvaluacionResultado.objects.update_or_create(
                                     evaluacion=evals[res["periodo"]],
                                     subindicador=sub_obj,
                                     defaults={
@@ -517,7 +533,7 @@ class Command(BaseCommand):
                                     },
                                 )
                                 for d in res["detalles"]:
-                                    EvaluacionResultadoDetalle.objects.get_or_create(
+                                    EvaluacionResultadoDetalle.objects.update_or_create(
                                         resultado=er,
                                         mes=d["mes"],
                                         defaults={

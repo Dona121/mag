@@ -170,6 +170,9 @@ class Periodo(Fechas):
 - `vigencia` es el **año** del periodo; alimenta el filtro "Vigencia" del dashboard.
 - `umbral` es el **objetivo (%)** que se dibuja como línea de meta en el **ranking**; si se
   deja vacío, no se muestra línea de objetivo (antes era una constante fija de 40%).
+- `vigencia` y `umbral` se editan desde la tabla de **`/periodos/`** (botón Definir/Editar →
+  vista `periodo_umbral_editar`), además del admin. `activo`/`publico` se cambian con sus
+  botones en esa misma tabla.
 
 ### `Evaluacion`
 El **hecho histórico**: una dependencia evaluada en un periodo, con un modelo **congelado**.
@@ -726,6 +729,10 @@ Puntos clave del importador (`contenido/management/commands/importar_v1.py`):
   `DecimalField` se ampliaron a `max_digits=10, decimal_places=5`.
 - **Pivote por periodo en columnas**: Enero–Junio (solo junio) + 3 bimestres; cada mes con
   dato genera un `EvaluacionResultadoDetalle`. Normaliza nombres y `tipo_calculo`.
+- **Ponderación recalculada**: la `ponderacion` se calcula = `puntaje × peso / 100` (con el
+  peso del subindicador); **no** se usa la columna de ponderado del Excel, que tenía celdas mal
+  calculadas. Así coincide con lo que recomputa la pantalla de evaluación. La reimportación usa
+  `update_or_create` (sobrescribe los valores ya cargados).
 - `openpyxl` se agregó a las dependencias para leer el `.xlsx`.
 
 ---

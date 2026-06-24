@@ -84,6 +84,7 @@ urlpatterns = [
     path("periodos/", views.PeriodoListView.as_view(), name="periodo_list"),
     path("periodos/<int:pk>/activar/", views.periodo_activar, name="periodo_activar"),
     path("periodos/<int:pk>/desactivar/", views.periodo_desactivar, name="periodo_desactivar"),
+    path("periodos/<int:pk>/umbral/", views.periodo_umbral_editar, name="periodo_umbral_editar"),
     path("periodos/<int:pk>/publicar/", views.periodo_publicar, name="periodo_publicar"),
     path("periodos/<int:pk>/despublicar/", views.periodo_despublicar, name="periodo_despublicar"),
 ]

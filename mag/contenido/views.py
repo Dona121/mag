@@ -1811,3 +1811,34 @@ def periodo_publicar(request, pk):
 @login_required
 def periodo_despublicar(request, pk):
     return _periodo_set_publico(request, pk, False)
+
+
+@login_required
+def periodo_umbral_editar(request, pk):
+    """Formulario para crear/editar la vigencia (año) y el umbral (objetivo % del
+    ranking) de un periodo. Umbral vacío = sin meta (no se dibuja la línea en el
+    Ranking)."""
+    periodo = get_object_or_404(Periodo, pk=pk)
+    if request.method == "POST":
+        try:
+            umbral_raw = request.POST.get("umbral", "").strip()
+            vigencia_raw = request.POST.get("vigencia", "").strip()
+            if umbral_raw == "":
+                periodo.umbral = None
+            else:
+                umbral = _parse_decimal(umbral_raw, "umbral", 0, 100)
+                if umbral > Decimal("99.99"):
+                    raise ValidationError("El umbral máximo es 99.99 (límite del campo).")
+                periodo.umbral = umbral
+            if vigencia_raw == "":
+                periodo.vigencia = None
+            elif vigencia_raw.isdigit() and 1900 <= int(vigencia_raw) <= 2200:
+                periodo.vigencia = int(vigencia_raw)
+            else:
+                raise ValidationError("La vigencia debe ser un año válido (p. ej. 2025).")
+            periodo.save(update_fields=["umbral", "vigencia", "actualizado_en"])
+            messages.success(request, "Periodo «{}» actualizado.".format(periodo))
+            return redirect("contenido:periodo_list")
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+    return render(request, "periodos/periodo_umbral_form.html", {"periodo": periodo})

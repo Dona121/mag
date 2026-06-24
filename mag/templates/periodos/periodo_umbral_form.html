@@ -1,0 +1,39 @@
+{% extends "base/base.html" %}
+{% load l10n %}
+{% block titulo %}Periodo · {{ periodo.nombre }}{% endblock %}
+{% block breadcrumb %}<a href="{% url 'contenido:periodo_list' %}">Periodos</a> · {{ periodo.nombre }}{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>Vigencia y umbral · {{ periodo.nombre }}</h1>
+    <span class="lead">Define el año de vigencia y el umbral (objetivo % del ranking) del periodo.</span>
+</div>
+
+<div class="card" style="max-width:520px;">
+    <form method="post">
+        {% csrf_token %}
+
+        <label for="f-vigencia">Vigencia (año)</label>
+        <input id="f-vigencia" type="number" name="vigencia" min="1900" max="2200" step="1"
+               value="{{ periodo.vigencia|default_if_none:'' }}" placeholder="p. ej. 2025"
+               style="width:100%;">
+        <p class="hint" style="color:var(--gris-medio); margin:6px 0 0; font-size:.9em;">
+            Año al que pertenece el periodo (alimenta el filtro de vigencia del dashboard).
+        </p>
+
+        <label for="f-umbral" style="display:block; margin-top:18px;">Umbral (objetivo % del ranking)</label>
+        <input id="f-umbral" type="text" inputmode="decimal" name="umbral"
+               value="{{ periodo.umbral|default_if_none:''|unlocalize }}"
+               placeholder="p. ej. 50" style="width:100%;">
+        <p class="hint" style="color:var(--gris-medio); margin:6px 0 0; font-size:.9em;">
+            Es la línea de meta del Ranking. Déjalo <strong>vacío</strong> para quitar el umbral
+            (no se dibuja la línea de meta). Máximo 99.99.
+        </p>
+
+        <div style="margin-top:22px; display:flex; gap:10px;">
+            <button type="submit" class="btn btn-primario">Guardar</button>
+            <a class="btn btn-borde" href="{% url 'contenido:periodo_list' %}">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

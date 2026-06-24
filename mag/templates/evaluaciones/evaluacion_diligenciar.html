@@ -477,14 +477,22 @@ table.matriz tr.fila-solo-lectura .col-sub { opacity: .85; }
     const totalEl     = document.getElementById('total-ponderacion');
     const barraEl     = document.getElementById('barra-progreso');
 
+    /* Guarda en cada input de ponderacion el valor EXACTO (sin redondear) en
+       data-exact, y muestra 2 decimales. El total suma los data-exact y solo
+       redondea al final (igual que el dashboard); evita el error de redondear
+       fila por fila antes de sumar. */
+    function setPond(input, exact) {
+        if (!input) return;
+        if (exact === null) { delete input.dataset.exact; input.value = ''; }
+        else { input.dataset.exact = exact; input.value = exact.toFixed(2); }
+    }
+
     /* Calcula y actualiza la ponderacion para un subindicador "directo" */
     function recalcDirecto(input) {
         const peso = parseNum(input.dataset.peso || '0');
         const target = document.getElementById(input.dataset.target);
         const v = parseNum(input.value);
-        if (target) {
-            target.value = !isNaN(v) ? (v * peso / 100).toFixed(2) : '';
-        }
+        setPond(target, !isNaN(v) ? (v * peso / 100) : null);
     }
 
     /* Calcula la ponderacion para un subindicador "mensual" usando el
@@ -498,18 +506,17 @@ table.matriz tr.fila-solo-lectura .col-sub { opacity: .85; }
             const v = parseNum(i.value);
             if (!isNaN(v)) { suma += v; n++; }
         });
-        const promedio = n ? suma / n : 0;
         const pondInput = document.getElementById('ponderacion_' + subId);
-        if (pondInput) {
-            pondInput.value = n ? (promedio * peso / 100).toFixed(2) : '';
-        }
+        setPond(pondInput, n ? ((suma / n) * peso / 100) : null);
     }
 
     function recalcularTotales() {
         let suma = 0;
         let llenas = 0;
         document.querySelectorAll('input[id^="ponderacion_"]').forEach(p => {
-            const v = parseNum(p.value);
+            // suma sin redondear por fila: usa el valor exacto si está disponible
+            const raw = (p.dataset.exact !== undefined) ? p.dataset.exact : p.value;
+            const v = parseNum(raw);
             if (!isNaN(v) && v > 0) { suma += v; llenas++; }
         });
         totalEl.textContent = suma.toFixed(2);
