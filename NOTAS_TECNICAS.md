@@ -735,6 +735,14 @@ Puntos clave del importador (`contenido/management/commands/importar_v1.py`):
   `update_or_create` (sobrescribe los valores ya cargados).
 - `openpyxl` se agregó a las dependencias para leer el `.xlsx`.
 
+**Agregar un periodo nuevo a la v1 ya existente** (p. ej. trimestre 2026): comando aparte
+`importar_periodo_v1` — **no crea modelos**, vincula cada dependencia a su `ModeloEvaluacion` v1
+(vía `DependenciaModelo`) y solo añade el periodo. **Detecta el periodo desde los encabezados**
+(`_detectar_periodos`), así soporta layouts distintos (bimestre/trimestre); el nombre se arma con
+sus meses ("Enero - Febrero - Marzo"). Si una hoja trae un subindicador nuevo, lo crea bajo su
+indicador en ese modelo (en 2026, el subindicador de Estratégicos cambió y se conserva como
+nuevo). Detalle y normalizaciones de nombres de la migración 2026 en `DOCUMENTACION.md` §14.
+
 ---
 
 # Parte III — Glosario del ORM (qué hace cada operador detrás de cámara)

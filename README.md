@@ -140,7 +140,18 @@ python manage.py importar_v1 migracion/archivo.xlsx           # simula (no escri
 python manage.py importar_v1 migracion/archivo.xlsx --commit  # escribe en la BD
 ```
 
-Requiere `openpyxl` (ya en `pyproject.toml`). Detalle completo en `NOTAS_TECNICAS.md`.
+Para **agregar un periodo nuevo a una v1 ya existente** (p. ej. el trimestre de 2026) se usa otro
+command que **no recrea modelos**: vincula cada dependencia a su modelo v1 y solo añade el periodo
+(detecta el layout del periodo desde los encabezados).
+
+```bash
+python manage.py importar_periodo_v1 migracion/archivo.xlsx           # simula
+python manage.py importar_periodo_v1 migracion/archivo.xlsx --commit  # escribe en la BD
+```
+
+Requiere `openpyxl` (ya en `pyproject.toml`). Detalle completo en `NOTAS_TECNICAS.md`; la guía de
+revisión de un Excel y la bitácora de la migración 2026 (con los textos normalizados) están en
+`DOCUMENTACION.md` §13 y §14.
 
 ## Documentación
 

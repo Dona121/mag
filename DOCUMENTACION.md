@@ -571,6 +571,10 @@ python mag/manage.py runserver
 #   (Windows: anteponer  $env:PYTHONUTF8="1"  para los acentos en consola)
 python mag/manage.py importar_v1 migracion/archivo.xlsx
 python mag/manage.py importar_v1 migracion/archivo.xlsx --commit
+
+# Agregar un periodo nuevo a los modelos v1 ya existentes (p. ej. trimestre 2026)
+python mag/manage.py importar_periodo_v1 migracion/archivo.xlsx           # simula
+python mag/manage.py importar_periodo_v1 migracion/archivo.xlsx --commit  # escribe
 ```
 
 > **Migración del histórico v1:** una hoja por dependencia (+ hoja `categorias` que mapea
@@ -651,3 +655,177 @@ de digitación que no cambia el dato).
     normaliza a `directo` (el modelo solo admite `mensual`/`directo`; el matiz de "a partir de…"
     ya queda reflejado en que esos meses traen un solo valor por bimestre).
 12. **Columna sobrante:** la hoja **Educación** traía una columna 31 vacía (sin efecto; se ignora).
+
+---
+
+## 13. Guía para revisar y migrar un nuevo Excel
+
+Checklist a seguir **cada vez** que llegue un archivo Excel para migrar (p. ej. una nueva
+vigencia o versión). Está ordenado en el orden recomendado de trabajo. Todo se valida con
+scripts puntuales **antes** de escribir en la BD; el importador corre primero en
+**simulación** (sin `--commit`).
+
+### 13.1. Inspección estructural (antes que nada)
+
+- [ ] **Hojas del libro.** Confirmar que hay una hoja **`categorias`** (mapa Dependencia →
+  Categoría) **+ una hoja por dependencia**. El **título de cada hoja = nombre de la dependencia**.
+- [ ] **Encabezados (fila 1).** Verificar que las columnas 1–30 siguen el layout esperado
+  (`pilar_nombre, pilar_peso, … , tipo_calculo`). Revisar **columnas sobrantes** (p. ej. una
+  col 31 vacía) y columnas faltantes.
+- [ ] **Periodos (columnas pivote).** Confirmar qué periodos trae (Enero–Junio solo junio; luego
+  bimestres; en 2026 trimestres) y que las columnas de puntaje/ponderado/observación de cada
+  periodo están donde se esperan.
+- [ ] **Hoja `categorias` completa.** Que toda dependencia con hoja esté mapeada, y revisar
+  **filas de más** (dependencias en `categorias` que no tienen hoja, o duplicados por nombre).
+
+### 13.2. Agrupación por estructura → modelos
+
+- [ ] **Agrupar dependencias por estructura** (árbol pilar→indicador→subindicador). Se crea **un
+  `ModeloEvaluacion` por estructura** distinta; el catálogo (pesos/criterios) se toma de la
+  **primera dependencia** del grupo (representativa).
+- [ ] **Variantes de nombre que inflan estructuras.** Detectar nombres que son el mismo concepto
+  escritos distinto (en v1: `Mecanismos de Financiación` vs `Otros Mecanismos de Financiación`;
+  `Ciclo de Proyectos` vs `Ciclos de Gerencia`). Normalizarlos reduce estructuras duplicadas.
+- [ ] **Divergencias dentro del grupo.** Para cada estructura, comparar pesos, criterios y
+  `tipo_calculo` entre las dependencias del grupo: deben ser idénticos (el catálogo del modelo es
+  único). Reportar diferencias.
+
+### 13.3. Validaciones de datos (correr y reportar)
+
+- [ ] **Cascada de pesos** (por hoja): Σ pilares = 100 %, Σ indicadores = peso del pilar,
+  Σ subindicadores = peso del indicador.
+- [ ] **Ponderado = puntaje × peso** (por celda, mensual y de periodo): detectar celdas donde el
+  ponderado del Excel no corresponde (un mes con peso distinto, valor inflado o en 0). *(El
+  importador igual recalcula la ponderación; ver §12, pero conviene reportarlas.)*
+- [ ] **`tipo_calculo`:** listar valores distintos; deben mapear a `mensual`/`directo`. Detectar
+  typos (p. ej. `paritr`) y textos no estandarizados entre dependencias de una estructura.
+- [ ] **`criterio_rango`:** revisar que no traiga el **peso** en lugar del descriptor
+  (`0 - 100%`, etc.).
+
+### 13.4. Limpieza de texto
+
+- [ ] **Espacios** al inicio/fin, `\xa0` (non-breaking space) y dobles espacios → recortar/normalizar.
+- [ ] **Typos** en nombres (en v1: `cumplimeinto`→`cumplimiento`, `Cumplimento`→`Cumplimiento`).
+- El importador normaliza esto automáticamente; aun así conviene **dejar el Excel fuente limpio**
+  (ver cuidados de openpyxl en 13.7).
+
+### 13.5. Escala y precisión
+
+- [ ] **Fracción → porcentaje:** el Excel viene en **0–1**; se guarda **×100** (peso `0.125`→`12.50`,
+  puntaje `0.5`→`50`). Confirmar contra la convención de la BD.
+- [ ] **Decimales:** los campos son `DecimalField(max_digits=10, decimal_places=5)`. Con pesos
+  periódicos (p. ej. `1/30 = 6.66667`) es **normal** que queden diferencias de redondeo de `0.01`
+  en alguna ponderación; no son errores.
+
+### 13.6. Preguntas al usuario (decisiones que NO se deben adivinar)
+
+1. **¿Cómo modelar las estructuras?** Uno por estructura distinta (recomendado), uno por categoría,
+   o uno por dependencia.
+2. **¿Unificar variantes de nombre?** ¿Cuál es el nombre canónico de cada par?
+3. **Dependencias dudosas:** duplicadas por nombre o presentes en `categorias` sin hoja (p. ej.
+   ¿`Oficina TI` = `Oficina TIC`?).
+4. **Ponderados inconsistentes:** ¿recalcular en el importador (`puntaje × peso`), corregir en el
+   Excel, o dejar el valor literal del Excel? *(En v1 se decidió **recalcular**.)*
+5. **Subindicadores `directo`/trimestral con un solo valor por bimestre:** ¿guardar un detalle del
+   mes presente, o solo el resultado del periodo?
+6. **Visibilidad de los periodos:** ¿`publico=True/False`? ¿`activo`? (histórico suele ir
+   `activo=False`, `publico=True`).
+7. **Nombres de los `ModeloEvaluacion`** que se crearán.
+8. **Limpieza de texto:** ¿solo recortar/normalizar, o también corregir typos?
+
+### 13.7. Cuidados con el archivo Excel (openpyxl)
+
+- [ ] **Respaldo** del `.xlsx` antes de editarlo por programa.
+- [ ] **Solo editar celdas de texto** (nombres, criterios); **nunca** tocar fórmulas.
+- [ ] openpyxl al guardar **conserva las fórmulas pero borra sus valores cacheados** → leer luego
+  con `data_only=True` devuelve `None` hasta **abrir y guardar el archivo en Excel** (recalcula).
+  Hacerlo antes de cualquier reproceso programático.
+- [ ] Dejar **un solo archivo** (sin copias `_original`/`_v2`) para evitar confusión.
+
+### 13.8. Cómo correr el importador
+
+```bash
+$env:PYTHONUTF8="1"                                   # Windows: acentos en consola
+python mag/manage.py importar_v1 migracion/archivo.xlsx           # simula (no escribe)
+python mag/manage.py importar_v1 migracion/archivo.xlsx --commit  # escribe (update_or_create)
+```
+
+- El `--dry-run` (sin `--commit`) **reporta** qué crearía (modelos, catálogo, evaluaciones,
+  totales) y las divergencias; revisarlo antes de escribir.
+- Usa `update_or_create`, así que reimportar **sobrescribe** puntajes/ponderaciones ya cargados.
+
+### 13.9. Verificación post-cargue (obligatoria)
+
+- [ ] **Cruce Excel ↔ BD:** comparar puntajes, ponderaciones y detalles mensuales de cada
+  `EvaluacionResultado` contra el Excel; **0 diferencias** y **0 filas sobrantes** en la BD.
+- [ ] **`ponderado = puntaje × peso`** en toda la BD: 0 desajustes (salvo el redondeo de 0.01 ya
+  mencionado).
+- [ ] **Conteos** (modelos, dependencias, periodos, resultados, detalles) coinciden con lo
+  reportado por el `--dry-run`.
+- [ ] **Coherencia dashboard ↔ pantalla de evaluación** para alguna dependencia/periodo de muestra.
+
+---
+
+## 14. Migración del periodo v1 2026 (primer trimestre)
+
+Segunda migración del histórico (vigencia 2026, **Enero - Febrero - Marzo**). A diferencia de
+2025, aquí **no se crean modelos**: la versión 1 ya existe, así que cada dependencia se vincula a
+su `ModeloEvaluacion` v1 actual y solo se le **agrega el periodo nuevo**. Fuente:
+`migracion/estructura_modelo_version_1_2026.xlsx`.
+
+### 14.1. Comando `importar_periodo_v1`
+
+```bash
+$env:PYTHONUTF8="1"
+python mag/manage.py importar_periodo_v1 migracion/estructura_modelo_version_1_2026.xlsx          # simula
+python mag/manage.py importar_periodo_v1 migracion/estructura_modelo_version_1_2026.xlsx --commit # escribe
+```
+
+- **Detecta el periodo desde los encabezados** (`_detectar_periodos`): el 2026 trae un layout
+  distinto al de 2025 (un trimestre: enero/febrero/marzo + `ponderacion_…` + observación, cols
+  9–16). El nombre del periodo se arma con sus meses → **"Enero - Febrero - Marzo"**. La
+  **vigencia** se toma del nombre del archivo (o con `--vigencia`).
+- **Reusa el modelo v1** de cada dependencia (vía `DependenciaModelo`); no agrupa ni crea modelos.
+- Si una hoja trae un **subindicador nuevo** (no estaba en v1), lo crea bajo su indicador en ese
+  modelo (ver Estratégicos abajo).
+- Igual que `importar_v1`: escala ×100, 5 decimales, **ponderación recalculada** (`puntaje × peso`)
+  y `update_or_create` (reimportar sobrescribe).
+- **Periodo:** `activo=False`, `publico=True`, `orden` = siguiente al último.
+- **Totales cargados:** 14 evaluaciones · 180 `EvaluacionResultado` · 395 detalles mensuales.
+
+### 14.2. Textos normalizados para igualar a v1
+
+El catálogo de 2026 debía ser **idéntico a v1** salvo cambios intencionales. Se corrigieron en el
+Excel (con respaldo previo) estas diferencias —principalmente **tildes** que el importador no
+normaliza y un typo— para que reusara el catálogo v1 en lugar de crear entradas nuevas:
+
+| Nivel | 2026 (antes) | v1 (corregido a) | Motivo |
+|---|---|---|---|
+| Subindicador (PIIP) | `Índice de Cumplimiento a la Programación - PIIP` | `Indice de Cumplimiento a la Programación - PIIP` | tilde en "Índice" |
+| Subindicador (GESPROY) | `Índice de Eficiencia en la Contratación o Índice de Eficiencia en la Ejecución - GESPROY` | `Indice de Eficiencia en la Contratación o Indice de Eficiencia en la Ejecución - GESPROY` | dos tildes |
+| Criterio (de `Tiempo`) | `Después de tiempo = No reportar` | `Despues de tiempo = No reportar` | tilde en "Después" |
+| Criterio | `Índice mensual de acuerdo con la ejecución física cargada` | `Indice mensual de acuerdo con la ejecución física cargada` | tilde en "Índice" |
+| Subindicador | `Cumplimento Acumulado: Avance en el tiempo…` | `Cumplimiento Acumulado: Avance en el tiempo…` | typo "Cumplim**ento**" → "Cumplim**iento**" |
+
+Además se recortaron **espacios** sobrantes/dobles y `\xa0` (no-break space) en los textos
+(p. ej. `"Resultados: 70% (Se promedia el  valor…"` con doble espacio). Verificación final del
+Excel: catálogo idéntico a v1 **salvo Estratégicos**, 0 espacios, 0 typos, cascada de pesos OK y
+`ponderado = puntaje × peso` OK.
+
+### 14.3. Cambio real (NO normalizado): subindicador de Estratégicos
+
+El subindicador de **`Ciclos de Gerencia > Estratégicos`** **cambió de verdad** en 2026 y se
+**conserva** como nuevo (no se iguala a v1):
+
+- v1 (2025): `Indice de Cumplimiento a la Programación etapa previa a asignación de recursos y ejecución - ESTRATÉGICOS`
+- 2026: `Resultados: 70% (Se promedia el valor de cada proyecto de acuerdo a su estado de avance) Gestión (Cumplimiento de Compromisos):30%`
+
+Consecuencia: en los **5 modelos** que tienen el indicador Estratégicos (Salud, Infraestructura,
+Inclusión Social, Aguas de Sucre, Unidad del Riesgo) ese indicador queda con **dos**
+subindicadores: el de v1 (datos solo de 2025) y el de 2026 (datos solo de 2026). Es válido: cada
+`EvaluacionResultado` apunta a su subindicador.
+
+> **Nota:** un mismo modelo/categoría puede, en distintos periodos, **no evaluar** un subindicador
+> o **agregar** uno (p. ej. en 2026 *Unidad del Riesgo* sumó Estratégicos y *Tránsito* —mismo
+> modelo— no). Es esperado; el periodo simplemente no crea resultado para los subindicadores que
+> no aplican.
