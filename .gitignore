@@ -6,6 +6,8 @@
 mag/.env
 
 # ───────────────────────────── Python ─────────────────────────────
+# Scripts exploratorios de un solo uso (análisis ad-hoc, no versionar).
+scratch_*.py
 __pycache__/
 *.py[cod]
 *$py.class

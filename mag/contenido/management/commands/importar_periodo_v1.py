@@ -28,7 +28,7 @@ from contenido.models import (
     ModeloEvaluacion, Periodo, Pilar, PilarCategoria, Subindicador, SubindicadorCategoria,
 )
 from contenido.management.commands.importar_v1 import (
-    limpiar_nombre, canon_pilar, a_porcentaje, norm_tipo_calculo, a_rango, _pond,
+    limpiar_nombre, limpiar_obs, canon_pilar, a_porcentaje, norm_tipo_calculo, a_rango, _pond,
     Q5, CANON_DEPENDENCIA, VERSION, HOJA_CATEGORIAS,
 )
 
@@ -82,8 +82,13 @@ def _detectar_periodos(ws):
     return periodos
 
 
-def _limpiar_obs(v):
-    return "" if v is None else str(v).replace("\xa0", " ").strip()
+def _col_tipo_calculo(ws):
+    """Columna de `tipo_calculo` detectada por encabezado (no es fija: cambia según
+    cuántos meses/periodos traiga la hoja)."""
+    for c in range(1, ws.max_column + 1):
+        if _h(ws, c) == "tipo_calculo":
+            return c
+    return None
 
 
 class Command(BaseCommand):
@@ -115,6 +120,8 @@ class Command(BaseCommand):
         self.stdout.write(f"Archivo: {ruta}\nVigencia: {vigencia}")
 
         hojas = [ws for ws in wb.worksheets if ws.title.strip().lower() != HOJA_CATEGORIAS]
+        if not hojas:
+            raise CommandError("El archivo no tiene hojas de dependencia (solo 'categorias').")
         # categorías (para la categoría de cada evaluación)
         mapa_cat = {}
         if HOJA_CATEGORIAS in [s.lower() for s in wb.sheetnames]:
@@ -148,6 +155,7 @@ class Command(BaseCommand):
     def _run(self, wb, hojas, mapa_cat, periodos, vigencia, commit):
         nuevos_sub = []   # (modelo, pilar, ind, sub) que habría que crear
         nuevos_ind = []   # (modelo, pilar, ind) que habría que crear
+        nuevos_pil = []   # (modelo, pilar) que habría que crear
         tot_eval = tot_er = tot_det = 0
         resumen = []
 
@@ -186,6 +194,7 @@ class Command(BaseCommand):
                         "nombre", "indicador__nombre", "indicador__pilar__nombre"):
                     sub_idx[(s.indicador.pilar.nombre.nombre, s.indicador.nombre.nombre, s.nombre.nombre)] = s
 
+                evals = {}   # nombre periodo -> Evaluacion (se crea una sola vez por dependencia)
                 for fila in self._parse(ws, periodos):
                     key = (fila["pilar"], fila["indicador"], fila["subindicador"])
                     sub = sub_idx.get(key)
@@ -207,7 +216,7 @@ class Command(BaseCommand):
                         sc, _ = SubindicadorCategoria.objects.get_or_create(nombre=fila["subindicador"])
                         sub, _ = Subindicador.objects.get_or_create(
                             indicador=ind, nombre=sc,
-                            defaults={"orden": fila["orden"], "peso": fila["peso"],
+                            defaults={"orden": fila["orden"], "peso": fila["peso"] or Decimal("0"),
                                       "tipo_calculo": fila["tipo_calculo"]})
                         for c in fila["criterios"]:
                             Criterio.objects.get_or_create(
@@ -215,9 +224,12 @@ class Command(BaseCommand):
                                 defaults={"orden": c["orden"], "rango": c["rango"]})
                         sub_idx[key] = sub
                     for res in fila["resultados"]:
-                        ev, _ = Evaluacion.objects.get_or_create(
-                            periodo=per_obj[res["periodo"]], dependencia=dep,
-                            defaults={"modelo_evaluacion": modelo, "categoria": cat})
+                        ev = evals.get(res["periodo"])
+                        if ev is None:
+                            ev, _ = Evaluacion.objects.get_or_create(
+                                periodo=per_obj[res["periodo"]], dependencia=dep,
+                                defaults={"modelo_evaluacion": modelo, "categoria": cat})
+                            evals[res["periodo"]] = ev
                         er, _ = EvaluacionResultado.objects.update_or_create(
                             evaluacion=ev, subindicador=sub,
                             defaults={"puntaje": res["puntaje"], "ponderacion": res["ponderacion"],
@@ -239,9 +251,14 @@ class Command(BaseCommand):
             existentes_ind = set(
                 Indicador.objects.filter(pilar__modelo_evaluacion=modelo).values_list(
                     "pilar__nombre__nombre", "nombre__nombre"))
+            existentes_pil = set(
+                Pilar.objects.filter(modelo_evaluacion=modelo).values_list(
+                    "nombre__nombre", flat=True))
             er = det = 0; pers = set()
             for fila in self._parse(ws, periodos):
                 key = (fila["pilar"], fila["indicador"], fila["subindicador"])
+                if fila["pilar"] not in existentes_pil:
+                    nuevos_pil.append((modelo.nombre, fila["pilar"]))
                 if (fila["pilar"], fila["indicador"]) not in existentes_ind:
                     nuevos_ind.append((modelo.nombre, fila["pilar"], fila["indicador"]))
                 if key not in existentes:
@@ -254,6 +271,10 @@ class Command(BaseCommand):
         self.stdout.write(self.style.MIGRATE_LABEL("\nDependencia -> modelo v1 (reusado):"))
         for dn, mn, np_, er, det in resumen:
             self.stdout.write(f"   {dn:24} -> {mn:34} {np_}p {er}res {det}det")
+        if nuevos_pil:
+            self.stdout.write(self.style.WARNING("\nPilares NUEVOS que se crearían (no estaban en v1):"))
+            for x in sorted(set(nuevos_pil)):
+                self.stdout.write(f"   + [{x[0]}] {x[1]}")
         if nuevos_ind:
             self.stdout.write(self.style.WARNING("\nIndicadores NUEVOS que se crearían (no estaban en v1):"))
             for x in sorted(set(nuevos_ind)):
@@ -277,6 +298,7 @@ class Command(BaseCommand):
         Lleva también peso/orden de pilar e indicador (por si hay que crearlos en el modelo,
         p. ej. cuando un periodo agrega un indicador que no estaba en la v1)."""
         filas = []
+        col_tc = _col_tipo_calculo(ws)
         pil = ind = None
         pil_peso = pil_orden = ind_peso = ind_orden = None
         sub_actual = None
@@ -302,7 +324,7 @@ class Command(BaseCommand):
                     "pilar_peso": pil_peso, "pilar_orden": pil_orden,
                     "ind_peso": ind_peso, "ind_orden": ind_orden,
                     "orden": orden_sub, "peso": peso,
-                    "tipo_calculo": norm_tipo_calculo(ws.cell(r, 17).value),
+                    "tipo_calculo": norm_tipo_calculo(ws.cell(r, col_tc).value) if col_tc else None,
                     "criterios": [], "resultados": self._resultados(ws, r, peso, periodos),
                 }
                 filas.append(sub_actual)
@@ -335,7 +357,7 @@ class Command(BaseCommand):
             out.append({
                 "orden": orden_p, "periodo": nombre_p,
                 "puntaje": puntaje, "ponderacion": _pond(puntaje, peso),
-                "observaciones": _limpiar_obs(ws.cell(fila, col_obs).value) if col_obs else "",
+                "observaciones": limpiar_obs(ws.cell(fila, col_obs).value) if col_obs else "",
                 "detalles": detalles,
             })
         return out
