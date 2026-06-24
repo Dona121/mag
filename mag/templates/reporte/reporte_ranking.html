@@ -17,7 +17,7 @@
       <input type="hidden" name="categoria" value="{% if sel_categoria %}{{ sel_categoria.pk }}{% endif %}">
       <div class="d-f"><label for="f-modelo">Versión del modelo</label>
         <select id="f-modelo" name="modelo" onchange="this.form.submit()">
-          {% for m in modelos %}<option value="{{ m.pk }}" {% if sel_modelo and m.pk == sel_modelo.pk %}selected{% endif %}>{{ m }} · v{{ m.version }}{% if m.activo %} ·activo{% endif %}</option>{% endfor %}
+          {% for m in modelos %}<option value="{{ m }}" {% if m == sel_modelo %}selected{% endif %}>Versión {{ m }}</option>{% endfor %}
         </select></div>
       <div class="d-f"><label for="f-vigencia">Vigencia (año)</label>
         <select id="f-vigencia" name="vigencia" onchange="this.form.submit()" {% if not vigencias %}disabled{% endif %}>
@@ -46,6 +46,7 @@
 <div class="d-cat">
   <div class="r-wrap">
     <nav class="d-cat-tabs">
+      <a href="?categoria=todas" class="{% if sel_categoria.pk == 'todas' %}activo{% endif %}">Todas las categorías</a>
       {% for c in categorias %}
       <a href="?categoria={{ c.pk }}" class="{% if sel_categoria and c.pk == sel_categoria.pk %}activo{% endif %}">{{ c }}</a>
       {% endfor %}

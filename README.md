@@ -120,10 +120,27 @@ Para un evaluador del equipo: agréguelo al grupo **Evaluador** y asígnele sus 
 - **La base de datos es fija**: el desarrollo toca solo vistas, plantillas, admin, URLs, settings y estáticos (no `models.py`, salvo decisión explícita).
 - **Jerarquía:** `ModeloEvaluacion → Pilar → Indicador → Subindicador → Criterio`; operación con `Dependencia`, `Categoria`, `Periodo`, `Evaluacion`, `EvaluacionResultado` (+ detalle mensual).
 - **`Periodo.activo`** controla la disponibilidad de diligenciamiento; **`Periodo.publico`** controla la visibilidad en el reporte público; **`Periodo.vigencia`** (año) alimenta el filtro por año y **`Periodo.umbral`** es el objetivo (%) del ranking.
-- **Pivote del dashboard/reporte = `Categoria`** (clasificación de la dependencia, **congelada en `Evaluacion.categoria`** al crearla). Las 4 vistas se filtran además por **versión del modelo** y por **vigencia (año)**.
+- **Pivote del dashboard/reporte = `Categoria`** (clasificación de la dependencia, **congelada en `Evaluacion.categoria`** al crearla); incluye la opción **"Todas las categorías"** (IMAG general). Las 4 vistas se filtran además por **versión del modelo** y por **vigencia (año)**.
+- **Filtro de versión = por número de versión** (1, 2, …), no por estructura: una versión puede tener **varias estructuras** (varios `ModeloEvaluacion` para distintos grupos de dependencias), y al elegir una versión entran **todas** sus estructuras. Por eso los pilares se agregan por **nombre** (si no, se duplicarían).
+- **Precisión decimal:** `peso`, `puntaje` y `ponderacion` son `DecimalField(max_digits=10, decimal_places=5)`.
 - **Ponderación:** `EvaluacionResultado.ponderacion = puntaje × peso_subindicador / 100`; agrega subindicador → (suma) dependencia → (promedio) pilar → (suma) IMAG. Hoy solo pesa el subindicador (los pesos de Indicador/Pilar no cascadean: decisión de negocio pendiente).
 
 ---
+
+## Migración del histórico (v1)
+
+El histórico **versión 1** (vigencia 2025, antes en Excel) se importa con un management
+command. Las hojas del `.xlsx` son una por dependencia (más la hoja `categorias` que mapea
+dependencia → categoría); las dependencias se agrupan por **estructura** y se crea un
+`ModeloEvaluacion` (version=1) por estructura.
+
+```bash
+$env:PYTHONUTF8="1"                                  # Windows: acentos en consola
+python manage.py importar_v1 migracion/archivo.xlsx           # simula (no escribe)
+python manage.py importar_v1 migracion/archivo.xlsx --commit  # escribe en la BD
+```
+
+Requiere `openpyxl` (ya en `pyproject.toml`). Detalle completo en `NOTAS_TECNICAS.md`.
 
 ## Documentación
 

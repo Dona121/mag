@@ -257,7 +257,10 @@ Toda entrada decimal (peso, puntaje) se valida con el helper
 
 ### Lógica de ponderación (`views.evaluacion_diligenciar`)
 
-Todos los valores se **cuantizan a 2 decimales** (`ROUND_HALF_UP`, helper `_q2`).
+Todos los valores se **cuantizan a 2 decimales** en la captura (`ROUND_HALF_UP`, helper
+`_q2`). Las columnas de la BD admiten más precisión —`peso`/`puntaje`/`ponderacion` son
+`DecimalField(max_digits=10, decimal_places=5)`— que aprovecha la migración del histórico v1
+(que guarda 5 decimales).
 
 - **DIRECTO:**
   ```
@@ -369,11 +372,15 @@ todos los periodos). En resumen:
 
 ### Filtros (server-side, vía GET)
 
-- **categoria** (pivote), **modelo** (versión; por defecto la activa, sin opción "todas"),
-  **vigencia** (año, opcional), periodo, comparar (`0` = ninguno), pilar; Desempeño añade
-  dependencia.
-- La agregación filtra por `evaluacion__categoria` + `evaluacion__modelo_evaluacion`
-  (helper `_eval_kwargs`). Helpers `_resolver`,
+- **categoria** (pivote; incluye **"Todas las categorías"** → IMAG general, consolida todo),
+  **modelo** (**número de versión**; por defecto la versión activa más reciente, sin opción
+  "todas" — pero una versión **agrupa todas sus estructuras**), **vigencia** (año, opcional),
+  periodo, comparar (`0` = ninguno), pilar; Desempeño añade dependencia.
+- La agregación filtra por `evaluacion__categoria` + `evaluacion__modelo_evaluacion__version`
+  (helper `_eval_kwargs`; "Todas las categorías" = sentinela `TODAS_CATEGORIAS`, omite el
+  filtro de categoría). Los **pilares se agregan por nombre** (`_promedios_por_pilar`) para no
+  duplicarlos cuando la versión abarca varias estructuras; el filtro de **pilar** también es por
+  nombre. Helpers `_resolver`, `_versiones_disponibles`/`_resolver_version`,
   `_periodos_con_datos(categoria, modelo, vigencia, solo_publicos)`, `_reporte_filtros`,
   `_resolver_dependencia_contexto`. Parámetros inválidos caen al valor por defecto.
 
@@ -412,8 +419,11 @@ grises). El semáforo del modelo (verde/ámbar/rojo) codifica los datos.
 
 Replican las láminas del Power BI. El **"Indicador" del Power BI = `Pilar`** del
 modelo; las **"Categorías" = `Categoria`** (modelo real que clasifica dependencias,
-**congelado en `Evaluacion.categoria`**). El pivote del tablero es la categoría; la
-**versión del modelo** y la **vigencia (año)** son filtros adicionales.
+**congelado en `Evaluacion.categoria`**), con la opción **"Todas las categorías"** (IMAG
+general). El pivote del tablero es la categoría; la **versión del modelo** (por **número** de
+versión: agrupa todas sus estructuras) y la **vigencia (año)** son filtros adicionales. Como
+una versión puede tener varias estructuras, los **pilares se consolidan por nombre** (no se
+repiten).
 
 1. **IMAG** (`reporte_publico`, `/reporte/`) — KPIs de IMAG (último %, anterior %,
    variación en puntos), evolución del **% de cumplimiento por pilar**
@@ -434,9 +444,10 @@ modelo; las **"Categorías" = `Categoria`** (modelo real que clasifica dependenc
 - Reutiliza los **mismos helpers** del dashboard interno (`_datos_dashboard`,
   `_serie_temporal`, `_datos_dependencia`, `_serie_dependencia`, `_imag_max(dash)`,
   `_estado_semaforo`, `_shade` para el sombreado de tablas). Todo en puntos/%.
-- Filtros **server-side (GET)**, auto-submit: **categoria, modelo (versión), vigencia
-  (año)**, periodo, comparar, pilar (y dependencia en Desempeño). Helper compartido
-  `_reporte_filtros` / `_ctx_filtros`. Parámetros inválidos caen al valor por defecto.
+- Filtros **server-side (GET)**, auto-submit: **categoria** (con "Todas las categorías"),
+  **modelo** (= número de versión), **vigencia (año)**, periodo, comparar, pilar (y
+  dependencia en Desempeño). Helper compartido `_reporte_filtros` / `_ctx_filtros`.
+  Parámetros inválidos caen al valor por defecto.
 - **Gráficos con Chart.js** vendorizado; los datos se inyectan inline con
   `{{ payload|json_script }}` (no hay endpoint AJAX aparte). Anchos/sombras usan
   `|unlocalize` (locale `es-col` mete coma decimal).
@@ -488,6 +499,16 @@ público, el reporte muestra el aviso correspondiente.
    `requirements.txt` fijaba 0.81.0). Solución: **actualizar django-unfold a
    0.98.0**, alinear `requirements.txt` con `pyproject.toml` (ambos 0.98.0) para
    que el deploy no reinstale la versión con bug, y `collectstatic --clear`.
+6. **Filtro de modelo por número de versión.** El selector "Versión del modelo" pasó de
+   listar cada `ModeloEvaluacion` a listar **números de versión** (1, 2, …): al elegir una
+   versión entran **todas sus estructuras** (varios `ModeloEvaluacion`). `_eval_kwargs` filtra
+   por `evaluacion__modelo_evaluacion__version`.
+7. **IMAG: pilares repetidos — corregido.** Al abarcar una versión varias estructuras, el
+   mismo pilar salía repetido. `_promedios_por_pilar` ahora agrega por **nombre** de pilar
+   (`PilarCategoria`); el filtro de pilar y el dropdown "Indicador" también deduplican por nombre.
+8. **Filtro "Todas las categorías".** Nueva opción (sentinela `TODAS_CATEGORIAS`) en el selector
+   de IMAG/Desempeño/Variaciones y como pestaña en Ranking: consolida todas las categorías para
+   ver el **IMAG general** y sus indicadores.
 
 ---
 
@@ -532,4 +553,14 @@ python mag/manage.py migrate
 
 # Servidor de desarrollo
 python mag/manage.py runserver
+
+# Importar el histórico v1 (Excel) — sin --commit solo simula
+#   (Windows: anteponer  $env:PYTHONUTF8="1"  para los acentos en consola)
+python mag/manage.py importar_v1 migracion/archivo.xlsx
+python mag/manage.py importar_v1 migracion/archivo.xlsx --commit
 ```
+
+> **Migración del histórico v1:** una hoja por dependencia (+ hoja `categorias` que mapea
+> dependencia → categoría); las dependencias se agrupan por **estructura** y se crea un
+> `ModeloEvaluacion` (version=1) por estructura. Escala ×100, 5 decimales, normaliza nombres
+> y `tipo_calculo`. Detalle en `NOTAS_TECNICAS.md`.

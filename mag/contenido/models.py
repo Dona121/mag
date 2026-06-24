@@ -110,7 +110,7 @@ class Pilar(Fechas):
     orden = models.IntegerField(null=True, verbose_name="Orden")
     modelo_evaluacion = models.ForeignKey(ModeloEvaluacion, on_delete=models.CASCADE)
     nombre = models.ForeignKey(PilarCategoria, on_delete=models.CASCADE)
-    peso = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="Peso")
+    peso = models.DecimalField(max_digits=10, decimal_places=5, verbose_name="Peso")
 
     class Meta:
         verbose_name = "Pilar"
@@ -124,7 +124,7 @@ class Indicador(Fechas):
     orden = models.IntegerField(null=True, verbose_name="Orden")
     pilar = models.ForeignKey(Pilar, on_delete=models.CASCADE)
     nombre = models.ForeignKey(IndicadorCategoria, on_delete=models.CASCADE)
-    peso = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="Peso")
+    peso = models.DecimalField(max_digits=10, decimal_places=5, verbose_name="Peso")
 
     class Meta:
         verbose_name = "Indicador"
@@ -143,7 +143,7 @@ class Subindicador(Fechas):
     orden = models.IntegerField(null=True, verbose_name="Orden")
     indicador = models.ForeignKey(Indicador, on_delete=models.CASCADE)
     nombre = models.ForeignKey(SubindicadorCategoria, on_delete=models.CASCADE)
-    peso = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="Peso")
+    peso = models.DecimalField(max_digits=10, decimal_places=5, verbose_name="Peso")
     tipo_calculo = models.CharField(
         max_length=20,
         choices=(("mensual", "Mesual"), ("directo", "Directo")),
@@ -233,10 +233,10 @@ class EvaluacionResultado(Fechas):
         Subindicador, on_delete=models.CASCADE, verbose_name="Subindicador"
     )
     puntaje = models.DecimalField(
-        max_digits=5, decimal_places=2, verbose_name="Puntaje", blank=True
+        max_digits=10, decimal_places=5, verbose_name="Puntaje", blank=True
     )
     ponderacion = models.DecimalField(
-        max_digits=5, decimal_places=2, verbose_name="Ponderación", blank=True
+        max_digits=10, decimal_places=5, verbose_name="Ponderación", blank=True
     )
     observaciones = models.TextField(verbose_name="Observaciones", blank=True)
 
@@ -293,8 +293,8 @@ class EvaluacionResultadoDetalle(models.Model):
     mes = models.IntegerField(
         choices=Meses.choices, validators=[MinValueValidator(1), MaxValueValidator(12)]
     )  # 1: Enero, 2: Febrero, 3: Marzo, etc
-    puntaje = models.DecimalField(max_digits=5, decimal_places=2)
-    ponderacion = models.DecimalField(max_digits=5, decimal_places=2)
+    puntaje = models.DecimalField(max_digits=10, decimal_places=5)
+    ponderacion = models.DecimalField(max_digits=10, decimal_places=5)
 
     class Meta:
         constraints = [

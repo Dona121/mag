@@ -20,12 +20,13 @@
       {% if categorias %}
       <div class="d-f"><label for="f-categoria">Categoría</label>
         <select id="f-categoria" name="categoria" onchange="this.form.submit()">
+          <option value="todas" {% if sel_categoria.pk == "todas" %}selected{% endif %}>Todas las categorías</option>
           {% for c in categorias %}<option value="{{ c.pk }}" {% if sel_categoria and c.pk == sel_categoria.pk %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select></div>
       {% endif %}
       <div class="d-f"><label for="f-modelo">Versión del modelo</label>
         <select id="f-modelo" name="modelo" onchange="this.form.submit()">
-          {% for m in modelos %}<option value="{{ m.pk }}" {% if sel_modelo and m.pk == sel_modelo.pk %}selected{% endif %}>{{ m }} · v{{ m.version }}{% if m.activo %} ·activo{% endif %}</option>{% endfor %}
+          {% for m in modelos %}<option value="{{ m }}" {% if m == sel_modelo %}selected{% endif %}>Versión {{ m }}</option>{% endfor %}
         </select></div>
       <div class="d-f"><label for="f-vigencia">Vigencia (año)</label>
         <select id="f-vigencia" name="vigencia" onchange="this.form.submit()" {% if not vigencias %}disabled{% endif %}>

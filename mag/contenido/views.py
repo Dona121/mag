@@ -151,18 +151,36 @@ def _puede_editar(indicadores_editables, indicador_id):
 #
 # Nota: solo el peso del SUBINDICADOR participa hoy en `ponderacion`; los pesos de
 # Indicador/Pilar no se aplican (queda pendiente de definicion del negocio).
+class _TodasCategorias:
+    """Sentinela del filtro 'Todas las categorías': NO filtra por categoria (consolida
+    todas), pero se distingue de `None` (que significa 'no hay categorías')."""
+    pk = "todas"
+    nombre = "Todas las categorías"
+
+    def __str__(self):
+        return self.nombre
+
+
+TODAS_CATEGORIAS = _TodasCategorias()
+
+
 def _eval_kwargs(categoria, modelo):
     """Filtro a nivel de la `Evaluacion` (categoria + versión del modelo).
 
-    Devuelve los kwargs `evaluacion__categoria` / `evaluacion__modelo_evaluacion`
+    Devuelve los kwargs `evaluacion__categoria` / `evaluacion__modelo_evaluacion__version`
     que se aplican sobre EvaluacionResultado y (vía la relación inversa) sobre
-    Periodo/Dependencia. `categoria` es el pivote; `modelo` es el filtro de versión.
+    Periodo/Dependencia. `categoria` es el pivote; `modelo` es el NÚMERO de versión.
+
+    El filtro opera sobre el número de versión (no sobre un ModeloEvaluacion concreto):
+    una misma versión puede tener varias estructuras (varios ModeloEvaluacion para
+    distintos grupos de dependencias), así que al elegir una versión entran TODAS sus
+    estructuras.
     """
     kw = {}
-    if categoria is not None:
+    if categoria is not None and categoria is not TODAS_CATEGORIAS:
         kw["evaluacion__categoria"] = categoria
     if modelo is not None:
-        kw["evaluacion__modelo_evaluacion"] = modelo
+        kw["evaluacion__modelo_evaluacion__version"] = modelo
     return kw
 
 
@@ -170,6 +188,8 @@ def _puntajes_por_dependencia(categoria, modelo, periodo, pilar=None):
     """{dep_id: (nombre, total_ponderacion)} para una categoria/modelo y periodo.
 
     Si `pilar` se indica, solo suma los subindicadores de ese pilar (ranking por pilar).
+    El filtro de pilar es por NOMBRE (PilarCategoria): una versión puede abarcar varias
+    estructuras que comparten el mismo pilar por nombre.
     """
     if periodo is None or categoria is None:
         return {}
@@ -177,7 +197,7 @@ def _puntajes_por_dependencia(categoria, modelo, periodo, pilar=None):
         evaluacion__periodo=periodo, **_eval_kwargs(categoria, modelo)
     )
     if pilar is not None:
-        qs = qs.filter(subindicador__indicador__pilar=pilar)
+        qs = qs.filter(subindicador__indicador__pilar__nombre=pilar.nombre_id)
     filas = (
         qs.values("evaluacion__dependencia", "evaluacion__dependencia__nombre")
         .annotate(total=Sum("ponderacion"))
@@ -191,17 +211,23 @@ def _puntajes_por_dependencia(categoria, modelo, periodo, pilar=None):
 
 
 def _promedios_por_pilar(categoria, modelo, periodo, pilar=None):
-    """{pilar_id: {'nombre','orden','promedio'}} — promedio entre dependencias."""
+    """{pilar_nombre_id: {'nombre','orden','peso','promedio'}} — promedio entre dependencias.
+
+    Se agrupa por NOMBRE de pilar (PilarCategoria), no por el Pilar concreto: una versión
+    puede abarcar varias estructuras (varios ModeloEvaluacion) que comparten el mismo pilar
+    por nombre; agrupar por PK los duplicaría en el IMAG. Los pilares con el mismo nombre
+    comparten orden/peso (validado en la migración), así que se toman del primer registro.
+    """
     if periodo is None or categoria is None:
         return {}
     qs = EvaluacionResultado.objects.filter(
         evaluacion__periodo=periodo, **_eval_kwargs(categoria, modelo)
     )
     if pilar is not None:
-        qs = qs.filter(subindicador__indicador__pilar=pilar)
+        qs = qs.filter(subindicador__indicador__pilar__nombre=pilar.nombre_id)
     filas = (
         qs.values(
-            "subindicador__indicador__pilar",
+            "subindicador__indicador__pilar__nombre",
             "subindicador__indicador__pilar__nombre__nombre",
             "subindicador__indicador__pilar__orden",
             "subindicador__indicador__pilar__peso",
@@ -211,7 +237,7 @@ def _promedios_por_pilar(categoria, modelo, periodo, pilar=None):
     )
     acum = {}
     for f in filas:
-        pid = f["subindicador__indicador__pilar"]
+        pid = f["subindicador__indicador__pilar__nombre"]
         d = acum.setdefault(pid, {
             "nombre": f["subindicador__indicador__pilar__nombre__nombre"],
             "orden": f["subindicador__indicador__pilar__orden"],
@@ -526,29 +552,57 @@ def _categorias_disponibles():
 
 
 def _resolver_categoria(request, categorias):
-    """Categoria seleccionada en el GET, o la primera disponible."""
+    """Categoria seleccionada en el GET, o la primera disponible.
+
+    `categoria=todas` selecciona el sentinela TODAS_CATEGORIAS (consolida todas las
+    categorías: IMAG general y sus indicadores sin pivotar por categoría).
+    """
+    if request.GET.get("categoria") == "todas":
+        return TODAS_CATEGORIAS
     return (
         _resolver(categorias, request.GET.get("categoria"))
         or (categorias[0] if categorias else None)
     )
 
 
-def _modelos_disponibles():
-    """Versiones del modelo, de la más reciente a la más antigua (filtro de versión)."""
-    return list(ModeloEvaluacion.objects.order_by("-version", "-activo", "nombre"))
+def _versiones_disponibles():
+    """Números de versión existentes, de la más reciente a la más antigua (filtro de versión).
+
+    El filtro de "versión del modelo" opera sobre el número de versión, no sobre cada
+    ModeloEvaluacion: una versión puede tener varias estructuras (varios ModeloEvaluacion
+    para distintos grupos de dependencias). Al elegir una versión entran todas ellas.
+    """
+    return list(
+        ModeloEvaluacion.objects
+        .values_list("version", flat=True)
+        .distinct()
+        .order_by("-version")
+    )
 
 
-def _resolver_modelo(request, modelos):
-    """Modelo (versión) del GET; por defecto el activo, o el primero disponible.
+def _resolver_version(request, versiones):
+    """Versión seleccionada en el GET (param 'modelo'); por defecto la versión activa más
+    reciente, o la más reciente disponible.
 
-    Siempre hay un modelo seleccionado (no existe opción "todos"): cada versión tiene
+    Siempre hay una versión seleccionada (no existe opción "todas"): cada versión tiene
     su propia estructura de pilares, así que mezclarlas no tendría sentido.
     """
-    return (
-        _resolver(modelos, request.GET.get("modelo"))
-        or next((m for m in modelos if m.activo), None)
-        or (modelos[0] if modelos else None)
+    raw = request.GET.get("modelo")
+    try:
+        v = int(raw)
+        if v in versiones:
+            return v
+    except (TypeError, ValueError):
+        pass
+    activa = (
+        ModeloEvaluacion.objects.filter(activo=True)
+        .order_by("-version")
+        .values_list("version", flat=True)
+        .first()
     )
+    if activa in versiones:
+        return activa
+    return versiones[0] if versiones else None
 
 
 def _vigencias_disponibles(categoria, modelo):
@@ -578,7 +632,9 @@ def _pilares_de_categoria(categoria, modelo):
     """Pilares presentes en las evaluaciones de la categoria/modelo (filtro 'Indicador').
 
     Se derivan de los pilares efectivamente evaluados (no del catálogo del modelo) para
-    no ofrecer pilares sin datos en el alcance seleccionado.
+    no ofrecer pilares sin datos en el alcance seleccionado. Se deduplican por NOMBRE
+    (una versión puede abarcar varias estructuras con el mismo pilar repetido): se deja un
+    Pilar representativo por nombre, ordenado por orden/nombre.
     """
     if categoria is None:
         return []
@@ -588,9 +644,14 @@ def _pilares_de_categoria(categoria, modelo):
         .values_list("subindicador__indicador__pilar", flat=True)
         .distinct()
     )
-    return list(
-        _orden_nombre(Pilar.objects.filter(pk__in=pilar_ids).select_related("nombre"))
-    )
+    pilares = _orden_nombre(Pilar.objects.filter(pk__in=pilar_ids).select_related("nombre"))
+    vistos, unicos = set(), []
+    for p in pilares:
+        if p.nombre_id in vistos:
+            continue
+        vistos.add(p.nombre_id)
+        unicos.append(p)
+    return unicos
 
 
 def _resolver_dependencia_contexto(request, solo_publicos=False):
@@ -601,8 +662,8 @@ def _resolver_dependencia_contexto(request, solo_publicos=False):
     """
     categorias = _categorias_disponibles()
     categoria = _resolver_categoria(request, categorias)
-    modelos = _modelos_disponibles()
-    modelo = _resolver_modelo(request, modelos)
+    versiones = _versiones_disponibles()
+    modelo = _resolver_version(request, versiones)
     vigencias = _vigencias_disponibles(categoria, modelo)
     vigencia = _resolver_vigencia(request, vigencias)
     periodos = _periodos_con_datos(categoria, modelo, vigencia, solo_publicos)
@@ -633,7 +694,7 @@ def _resolver_dependencia_contexto(request, solo_publicos=False):
 
     return {
         "categorias": categorias, "categoria": categoria,
-        "modelos": modelos, "modelo": modelo,
+        "modelos": versiones, "modelo": modelo,
         "vigencias": vigencias, "vigencia": vigencia,
         "periodos": periodos,
         "actual": actual, "anterior": anterior, "comparar_raw": comparar_raw,
@@ -682,8 +743,8 @@ def _reporte_filtros(request, solo_publicos=True):
     """
     categorias = _categorias_disponibles()
     categoria = _resolver_categoria(request, categorias)
-    modelos = _modelos_disponibles()
-    modelo = _resolver_modelo(request, modelos)
+    versiones = _versiones_disponibles()
+    modelo = _resolver_version(request, versiones)
     vigencias = _vigencias_disponibles(categoria, modelo)
     vigencia = _resolver_vigencia(request, vigencias)
     periodos = _periodos_con_datos(categoria, modelo, vigencia, solo_publicos=solo_publicos)
@@ -703,7 +764,7 @@ def _reporte_filtros(request, solo_publicos=True):
 
     return {
         "categorias": categorias, "categoria": categoria,
-        "modelos": modelos, "modelo": modelo,
+        "modelos": versiones, "modelo": modelo,
         "vigencias": vigencias, "vigencia": vigencia,
         "periodos": periodos,
         "actual": actual, "anterior": anterior, "comparar_raw": comparar_raw,

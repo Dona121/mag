@@ -119,19 +119,19 @@ class Pilar(Fechas):
     orden  = models.IntegerField(null=True)
     modelo_evaluacion = models.ForeignKey(ModeloEvaluacion, on_delete=models.CASCADE)
     nombre = models.ForeignKey(PilarCategoria, on_delete=models.CASCADE)   # nombre = catálogo
-    peso   = models.DecimalField(max_digits=5, decimal_places=2)
+    peso   = models.DecimalField(max_digits=10, decimal_places=5)
 
 class Indicador(Fechas):
     orden  = models.IntegerField(null=True)
     pilar  = models.ForeignKey(Pilar, on_delete=models.CASCADE)
     nombre = models.ForeignKey(IndicadorCategoria, on_delete=models.CASCADE)
-    peso   = models.DecimalField(max_digits=5, decimal_places=2)
+    peso   = models.DecimalField(max_digits=10, decimal_places=5)
 
 class Subindicador(Fechas):
     orden  = models.IntegerField(null=True)
     indicador = models.ForeignKey(Indicador, on_delete=models.CASCADE)
     nombre = models.ForeignKey(SubindicadorCategoria, on_delete=models.CASCADE)
-    peso   = models.DecimalField(max_digits=5, decimal_places=2)
+    peso   = models.DecimalField(max_digits=10, decimal_places=5)
     tipo_calculo = models.CharField(
         max_length=20, choices=(("mensual","Mensual"),("directo","Directo")), null=True)
 ```
@@ -216,8 +216,8 @@ El resultado por subindicador: puntaje capturado + ponderación calculada + obse
 class EvaluacionResultado(Fechas):
     evaluacion   = models.ForeignKey(Evaluacion, on_delete=models.CASCADE)
     subindicador = models.ForeignKey(Subindicador, on_delete=models.CASCADE)
-    puntaje      = models.DecimalField(max_digits=5, decimal_places=2, blank=True)
-    ponderacion  = models.DecimalField(max_digits=5, decimal_places=2, blank=True)
+    puntaje      = models.DecimalField(max_digits=10, decimal_places=5, blank=True)
+    ponderacion  = models.DecimalField(max_digits=10, decimal_places=5, blank=True)
     observaciones= models.TextField(blank=True)
 
     class Meta:
@@ -248,8 +248,8 @@ class EvaluacionResultadoDetalle(models.Model):       # NO hereda de Fechas
     resultado   = models.ForeignKey(EvaluacionResultado, on_delete=models.CASCADE)
     mes         = models.IntegerField(choices=Meses.choices,
                     validators=[MinValueValidator(1), MaxValueValidator(12)])
-    puntaje     = models.DecimalField(max_digits=5, decimal_places=2)
-    ponderacion = models.DecimalField(max_digits=5, decimal_places=2)
+    puntaje     = models.DecimalField(max_digits=10, decimal_places=5)
+    ponderacion = models.DecimalField(max_digits=10, decimal_places=5)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["resultado","mes"],
@@ -644,37 +644,50 @@ arma el filtro común a nivel de `Evaluacion`:
 ```python
 def _eval_kwargs(categoria, modelo):
     kw = {}
-    if categoria is not None:
-        kw["evaluacion__categoria"] = categoria            # pivote (snapshot en Evaluacion)
+    if categoria is not None and categoria is not TODAS_CATEGORIAS:
+        kw["evaluacion__categoria"] = categoria                       # pivote (snapshot en Evaluacion)
     if modelo is not None:
-        kw["evaluacion__modelo_evaluacion"] = modelo       # filtro de versión
+        kw["evaluacion__modelo_evaluacion__version"] = modelo         # filtro por NÚMERO de versión
     return kw
 
 def _puntajes_por_dependencia(categoria, modelo, periodo, pilar=None):
     qs = EvaluacionResultado.objects.filter(
         evaluacion__periodo=periodo, **_eval_kwargs(categoria, modelo))   # JOIN a Evaluacion + filtros
     if pilar is not None:
-        qs = qs.filter(subindicador__indicador__pilar=pilar)   # JOIN de 3 saltos
+        qs = qs.filter(subindicador__indicador__pilar__nombre=pilar.nombre_id)   # por NOMBRE de pilar
     filas = (qs.values("evaluacion__dependencia", "evaluacion__dependencia__nombre")
                .annotate(total=Sum("ponderacion")))    # GROUP BY + SUM
     return {f["evaluacion__dependencia"]: (f["evaluacion__dependencia__nombre"],
                                            f["total"] or Decimal("0")) for f in filas}
 ```
 
+> **Filtro por versión, no por estructura.** `modelo` es el **número de versión** (1, 2, …),
+> no un `ModeloEvaluacion` concreto. Una versión puede tener **varias estructuras** (varios
+> `ModeloEvaluacion` para distintos grupos de dependencias — ver migración v1 más abajo), así
+> que al filtrar `version=1` entran **todas** sus estructuras. Por lo mismo, los pilares se
+> agregan por **nombre** (`PilarCategoria`) y no por PK: si no, el mismo pilar ("Reporte",
+> etc.) saldría repetido tantas veces como estructuras tenga la versión.
+>
+> **`TODAS_CATEGORIAS`** es un sentinela del filtro "Todas las categorías": `_eval_kwargs`
+> **omite** el filtro de categoría (consolida todas → IMAG general y sus indicadores), pero se
+> distingue de `None` (que significa "no hay categorías").
+
 Detrás de cámara:
 
 - **`evaluacion__categoria=categoria`** — el doble guion bajo `__` **atraviesa la FK**:
   Django añade un `JOIN` a `contenido_evaluacion` y filtra por `evaluacion.categoria_id`
-  (y, si se pasó, también por `evaluacion.modelo_evaluacion_id`).
-  `subindicador__indicador__pilar=pilar` encadena **tres** JOINs (subindicador→indicador→pilar).
+  (y, si se pasó, también por `evaluacion.modelo_evaluacion__version`).
+  `subindicador__indicador__pilar__nombre=pilar.nombre_id` encadena varios JOINs hasta el
+  catálogo del pilar (`PilarCategoria`), para filtrar por nombre y no por un Pilar concreto.
 - **`.values("evaluacion__dependencia", "...__nombre")`** — proyecta solo esas columnas y
   cambia la consulta a "modo diccionario"; combinado con `annotate`, define el `GROUP BY`.
 - **`.annotate(total=Sum("ponderacion"))`** — agrega `SUM(ponderacion)` **agrupando** por
   las columnas de `values()`. Resultado: una fila por dependencia con su total.
 
 Otras funciones del reporte siguen el mismo patrón (todas reciben `categoria, modelo`):
-- **`_promedios_por_pilar`** suma por (pilar, dependencia) y luego **promedia entre
-  dependencias** (`suma / n` en Python).
+- **`_promedios_por_pilar`** suma por (nombre de pilar, dependencia) y luego **promedia entre
+  dependencias** (`suma / n` en Python). Agrupa por **nombre** de pilar para no duplicar
+  pilares cuando la versión abarca varias estructuras.
 - **`_ranking`** ordena por total descendente (1 = mejor).
 - **`_imag_max(dash)`** → suma los **pesos de los pilares presentes** en el tablero (ya no
   consulta el modelo, para no depender de una versión concreta).
@@ -685,15 +698,35 @@ Otras funciones del reporte siguen el mismo patrón (todas reciben `categoria, m
 > `ponderacion`. Los pesos de Indicador y Pilar existen pero **no** se aplican (ver
 > comentario en `views.py`). Cambiarlo afectaría todos los agregados.
 
-**Filtros del dashboard/reporte (4 vistas):** `categoria` (pivote, pestañas/selector),
-`modelo` (**versión**; siempre hay una seleccionada, por defecto la activa, sin opción
-"todas" porque cada versión tiene su propia estructura de pilares), `vigencia` (año,
-opcional), `periodo`, `comparar` y `pilar` (+`dependencia` en Desempeño). El objetivo del
-**ranking** sale de `Periodo.umbral` (Parte I).
+**Filtros del dashboard/reporte (4 vistas):** `categoria` (pivote, pestañas/selector; incluye
+**"Todas las categorías"** → consolida todo, IMAG general), `modelo` (**número de versión**;
+siempre hay una seleccionada, por defecto la versión activa más reciente, sin opción "todas"
+porque cada versión tiene su propia estructura de pilares — pero **una versión agrupa todas sus
+estructuras**), `vigencia` (año, opcional), `periodo`, `comparar` y `pilar` (+`dependencia` en
+Desempeño). El filtro de `pilar` opera por **nombre** (capta todas las estructuras de la
+versión). El objetivo del **ranking** sale de `Periodo.umbral` (Parte I).
 
 El **reporte público** (`/reporte/`) llama estas funciones con `solo_publicos=True` (solo
 periodos `publico=True`); el **dashboard interno** (`/dashboard/`, con login) las llama con
 `interno=True` y ve **todos** los periodos.
+
+### Migración del histórico v1 (management command `importar_v1`)
+
+El histórico **versión 1** (vigencia 2025, que se llevaba en Excel) se importó con
+`python manage.py importar_v1 <ruta.xlsx> [--commit]` (sin `--commit` solo simula).
+Puntos clave del importador (`contenido/management/commands/importar_v1.py`):
+
+- **1 hoja = 1 dependencia**; la hoja `categorias` mapea dependencia → `Categoria` (1/2/3).
+- Las dependencias se **agrupan por estructura** (árbol pilar→indicador→subindicador) y se
+  crea **un `ModeloEvaluacion` (version=1) por estructura** (6 en total). El catálogo
+  (pesos/criterios) toma la **primera dependencia del grupo** como representativa; los
+  puntajes/ponderaciones se guardan **directo de cada hoja** (dato histórico exacto).
+- **Escala ×100**: el Excel viene en fracción (0–1) y se guarda como porcentaje
+  (peso `0.125`→`12.50`, puntaje `0.5`→`50`), igual que el resto de la BD. Por eso los
+  `DecimalField` se ampliaron a `max_digits=10, decimal_places=5`.
+- **Pivote por periodo en columnas**: Enero–Junio (solo junio) + 3 bimestres; cada mes con
+  dato genera un `EvaluacionResultadoDetalle`. Normaliza nombres y `tipo_calculo`.
+- `openpyxl` se agregó a las dependencias para leer el `.xlsx`.
 
 ---
 
