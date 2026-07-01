@@ -49,6 +49,11 @@ urlpatterns = [
     path("dashboard/ranking/", views.dashboard_ranking, name="dashboard_ranking"),
     path("dashboard/variaciones/", views.dashboard_variaciones, name="dashboard_variaciones"),
 
+    # ------------------------------------------------------------- Reportes
+    # Compositor de informes descargables (Excel/PDF) por dependencia.
+    path("reportes/", views.reportes, name="reportes"),
+    path("reportes/generar/", views.reporte_generar, name="reporte_generar"),
+
     # ----------------------------------------------- Reporte publico (sin login)
     # Replica del Power BI: IMAG · Desempeno · Ranking · Variaciones.
     path("reporte/", views.reporte_publico, name="reporte_publico"),

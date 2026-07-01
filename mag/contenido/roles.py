@@ -22,6 +22,8 @@ EVALUADOR_URLS_PERMITIDAS = frozenset({
     # General
     "dashboard", "dashboard_imag", "dashboard_desempeno",
     "dashboard_ranking", "dashboard_variaciones",
+    # Reportes (compositor de informes Excel/PDF)
+    "reportes", "reporte_generar",
     # Operacion > Evaluaciones (ver listado y diligenciar; NO crear)
     "evaluacion_list", "evaluacion_diligenciar",
     # Cuenta / autenticacion

@@ -1,0 +1,289 @@
+{% extends "base/base.html" %}
+{% load static l10n %}
+{% block titulo %}Reportes{% endblock %}
+{% block breadcrumb %}Reportes{% endblock %}
+
+{% block estilos_extra %}
+.rep-grid { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 18px; align-items: start; }
+.rep-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.rep-card {
+    background: var(--blanco); border: 1px solid var(--gris-claro);
+    border-radius: 10px; box-shadow: var(--sombra-suave); padding: 18px 20px;
+}
+.rep-h {
+    font-size: 12px; font-weight: 800; letter-spacing: .10em; text-transform: uppercase;
+    color: var(--verde-superficie); margin: 0 0 14px; display: flex; align-items: center; gap: 10px;
+}
+.rep-h::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--verde-primario); }
+.rep-opt {
+    font-size: 10px; font-weight: 700; letter-spacing: .04em; color: var(--gris-medio);
+    background: var(--gris-fondo); border: 1px solid var(--gris-claro); border-radius: 999px; padding: 1px 8px;
+}
+
+/* --- Filtros --- */
+.rep-filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.rep-field { display: flex; flex-direction: column; gap: 6px; }
+.rep-field > span {
+    font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--gris-medio);
+}
+.rep-field select {
+    font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--gris-oscuro);
+    padding: 9px 11px; border: 1px solid var(--gris-claro); border-radius: var(--radio-base);
+    background: var(--blanco); transition: border-color var(--transicion), box-shadow var(--transicion);
+}
+.rep-field select:focus { outline: none; border-color: var(--verde-primario); box-shadow: var(--sombra-foco); }
+
+/* --- Buscador + checklist --- */
+.rep-search { position: relative; margin-bottom: 12px; }
+.rep-search svg {
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    width: 16px; height: 16px; min-width: 16px; flex: none; pointer-events: none;
+    stroke: var(--gris-medio); fill: none; stroke-width: 2;
+}
+.rep-search input {
+    width: 100%; font-family: inherit; font-size: 13.5px; color: var(--gris-oscuro);
+    padding: 9px 12px 9px 40px; border: 1px solid var(--gris-claro); border-radius: var(--radio-base); background: var(--blanco);
+}
+.rep-search input:focus { outline: none; border-color: var(--verde-primario); box-shadow: var(--sombra-foco); }
+
+.rep-lista {
+    max-height: 320px; overflow: auto; border: 1px solid var(--gris-claro); border-radius: var(--radio-base);
+}
+.rep-todas, .rep-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer;
+    border-bottom: 1px solid var(--gris-claro); font-size: 13.5px; color: var(--gris-oscuro);
+    transition: background var(--transicion);
+}
+.rep-row:last-child { border-bottom: none; }
+.rep-row:hover { background: var(--verde-claro); }
+.rep-todas {
+    flex-direction: column; align-items: flex-start; gap: 2px;
+    background: var(--gris-fondo); border-bottom: 2px solid var(--gris-claro); cursor: default;
+}
+.rep-todas.on { background: var(--verde-claro); border-bottom-color: var(--verde-primario); }
+.rep-todas-t { font-weight: 700; color: var(--verde-superficie); }
+.rep-todas-s { font-size: 11px; color: var(--gris-medio); font-weight: 500; }
+.rep-row input { width: 16px; height: 16px; accent-color: var(--verde-primario); flex: none; }
+.rep-vacio { padding: 18px 14px; margin: 0; color: var(--gris-medio); font-size: 13px; font-style: italic; }
+
+.rep-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.rep-chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+    color: var(--verde-superficie); background: var(--verde-claro); border: 1px solid #bfe3cd;
+    border-radius: 999px; padding: 3px 6px 3px 11px;
+}
+.rep-chip button {
+    border: none; background: none; cursor: pointer; color: var(--verde-superficie);
+    font-size: 15px; line-height: 1; padding: 0 2px; border-radius: 999px;
+}
+.rep-chip button:hover { color: var(--rojo); }
+
+/* --- Panel membrete (signature) --- */
+.rep-membrete {
+    position: sticky; top: calc(var(--topbar-h) + 14px);
+    background: var(--blanco); border: 1px solid var(--gris-claro);
+    border-radius: 10px; box-shadow: var(--sombra-suave); overflow: hidden;
+}
+.rep-mem-bar { height: 6px; background: linear-gradient(90deg, var(--verde-superficie), var(--verde-primario)); }
+.rep-mem-body { padding: 18px 20px 20px; }
+.rep-mem-logo { display: block; height: 46px; width: auto; margin: 2px 0 14px auto; }
+.rep-mem-t {
+    font-size: 12.5px; font-weight: 800; letter-spacing: .04em; color: var(--verde-superficie);
+    margin: 0 0 14px; line-height: 1.3;
+}
+.rep-mem-info { margin: 0 0 16px; display: flex; flex-direction: column; gap: 9px; }
+.rep-mem-info > div {
+    display: flex; justify-content: space-between; gap: 12px;
+    border-bottom: 1px dashed var(--gris-claro); padding-bottom: 8px;
+}
+.rep-mem-info dt { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--gris-medio); }
+.rep-mem-info dd { margin: 0; font-size: 13px; font-weight: 600; color: var(--gris-oscuro); text-align: right; }
+
+.rep-manifiesto {
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px;
+    background: var(--gris-fondo); border-radius: var(--radio-base); padding: 12px 14px; margin-bottom: 16px;
+}
+.rep-num { font-size: 24px; font-weight: 800; color: var(--verde-primario); line-height: 1; }
+.rep-num-l { font-size: 11.5px; font-weight: 600; color: var(--gris-medio); }
+.rep-arrow { font-size: 16px; color: var(--gris-medio); font-weight: 700; margin: 0 2px; }
+
+.rep-formato {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px;
+    background: var(--gris-fondo); border: 1px solid var(--gris-claro); border-radius: var(--radio-base); padding: 4px;
+}
+.rep-seg { position: relative; cursor: pointer; }
+.rep-seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.rep-seg span {
+    display: block; text-align: center; font-size: 13px; font-weight: 700; color: var(--gris-medio);
+    padding: 8px 0; border-radius: 4px; transition: background var(--transicion), color var(--transicion);
+}
+.rep-seg input:checked + span { background: var(--verde-primario); color: var(--blanco); }
+.rep-seg input:focus-visible + span { box-shadow: var(--sombra-foco); }
+
+.rep-generar { width: 100%; justify-content: center; font-size: 14px; padding: 11px 18px; }
+.rep-generar:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+.rep-nota { font-size: 11.5px; color: var(--gris-medio); text-align: center; margin: 10px 0 0; }
+
+@media (max-width: 900px) {
+    .rep-grid { grid-template-columns: 1fr; }
+    .rep-membrete { position: static; order: -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .rep-todas, .rep-row, .rep-field select, .rep-seg span { transition: none; }
+}
+{% endblock %}
+
+{% block contenido %}
+<div class="seccion-titulo">
+    <h1>Reportes</h1>
+    <span class="lead">Genera el informe de evaluación por dependencia en Excel o PDF.</span>
+</div>
+
+<form id="rep-form" method="get" action="{% url 'contenido:reportes' %}" class="rep-grid">
+    {% csrf_token %}
+
+    <div class="rep-main">
+        <section class="rep-card">
+            <h2 class="rep-h">Filtro</h2>
+            <div class="rep-filtros">
+                <label class="rep-field">
+                    <span>Versión</span>
+                    <select name="modelo" onchange="this.form.submit()">
+                        {% for v in versiones %}
+                        <option value="{{ v }}" {% if v == version %}selected{% endif %}>Versión {{ v }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="rep-field">
+                    <span>Categoría</span>
+                    <select name="categoria" onchange="this.form.submit()">
+                        <option value="todas" {% if categoria == todas_categorias %}selected{% endif %}>Todas las categorías</option>
+                        {% for c in categorias %}
+                        <option value="{{ c.pk }}" {% if categoria.pk == c.pk %}selected{% endif %}>{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="rep-field">
+                    <span>Periodo</span>
+                    <select name="periodo" onchange="this.form.submit()" {% if not periodos %}disabled{% endif %}>
+                        {% for p in periodos %}
+                        <option value="{{ p.pk }}" {% if periodo and p.pk == periodo.pk %}selected{% endif %}>{{ p }}{% if p.vigencia %} · {{ p.vigencia }}{% endif %}</option>
+                        {% empty %}
+                        <option>— sin periodos con datos —</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+        </section>
+
+        <section class="rep-card">
+            <h2 class="rep-h">Dependencias <span class="rep-opt">opcional</span></h2>
+            <div class="rep-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="rep-buscar" placeholder="Buscar dependencia" autocomplete="off"
+                       aria-label="Buscar dependencia">
+            </div>
+            <div class="rep-lista" id="rep-lista" data-total="{{ dependencias|length }}">
+                <div class="rep-todas on" id="rep-todas">
+                    <span class="rep-todas-t">Todas — una hoja por cada una</span>
+                    <span class="rep-todas-s">Estado por defecto cuando no eliges ninguna.</span>
+                </div>
+                {% for d in dependencias %}
+                <label class="rep-row" data-nombre="{{ d.nombre|lower }}">
+                    <input type="checkbox" name="dependencia" value="{{ d.pk }}" data-nombre="{{ d.nombre }}"
+                           {% if d.pk|stringformat:'s' in sel_deps %}checked{% endif %}>
+                    <span>{{ d.nombre }}</span>
+                </label>
+                {% empty %}
+                <p class="rep-vacio">No hay dependencias con evaluación para estos filtros.</p>
+                {% endfor %}
+            </div>
+            <div class="rep-chips" id="rep-chips"></div>
+        </section>
+    </div>
+
+    <aside class="rep-membrete">
+        <div class="rep-mem-bar"></div>
+        <div class="rep-mem-body">
+            <img class="rep-mem-logo" src="{% static 'logos/2025_logo-gob-Sucre_2.png' %}" alt="Gobernación de Sucre">
+            <p class="rep-mem-t">INFORME · MODELO DE ALTA GERENCIA</p>
+            <dl class="rep-mem-info">
+                <div><dt>Categoría</dt><dd>{{ categoria|default:"—" }}</dd></div>
+                <div><dt>Periodo</dt><dd>{% if periodo %}{{ periodo }}{% if periodo.vigencia %} · {{ periodo.vigencia }}{% endif %}{% else %}—{% endif %}</dd></div>
+                <div><dt>Versión</dt><dd>{{ version|default:"—" }}</dd></div>
+            </dl>
+            <div class="rep-manifiesto">
+                <span class="rep-num" id="rep-num">{{ dependencias|length }}</span>
+                <span class="rep-num-l">dependencias</span>
+                <span class="rep-arrow">&rarr;</span>
+                <span class="rep-num" id="rep-hojas">{{ dependencias|length }}</span>
+                <span class="rep-num-l">hojas</span>
+            </div>
+            <div class="rep-formato" role="radiogroup" aria-label="Formato del informe">
+                <label class="rep-seg"><input type="radio" name="formato" value="excel" checked><span>Excel</span></label>
+                <label class="rep-seg"><input type="radio" name="formato" value="pdf"><span>PDF</span></label>
+            </div>
+            <button type="submit" class="btn btn-primario rep-generar"
+                    formmethod="post" formaction="{% url 'contenido:reporte_generar' %}"
+                    {% if not dependencias %}disabled{% endif %}>Generar informe</button>
+            {% if not periodos %}
+            <p class="rep-nota">Elige una versión y categoría con datos para habilitar el informe.</p>
+            {% endif %}
+        </div>
+    </aside>
+</form>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+(function () {
+    const lista  = document.getElementById('rep-lista');
+    if (!lista) return;
+    const total  = parseInt(lista.dataset.total || '0', 10);
+    const buscar = document.getElementById('rep-buscar');
+    const todas  = document.getElementById('rep-todas');
+    const chips  = document.getElementById('rep-chips');
+    const numEl  = document.getElementById('rep-num');
+    const hojaEl = document.getElementById('rep-hojas');
+    const boxes  = Array.from(lista.querySelectorAll('input[name="dependencia"]'));
+
+    function marcadas() { return boxes.filter(b => b.checked); }
+
+    function refrescar() {
+        const sel = marcadas();
+        const n = sel.length ? sel.length : total;
+        numEl.textContent = n;
+        hojaEl.textContent = n;
+        todas.classList.toggle('on', sel.length === 0);
+        // chips de las seleccionadas
+        chips.innerHTML = '';
+        sel.forEach(b => {
+            const chip = document.createElement('span');
+            chip.className = 'rep-chip';
+            chip.append(b.dataset.nombre);
+            const x = document.createElement('button');
+            x.type = 'button';
+            x.setAttribute('aria-label', 'Quitar ' + b.dataset.nombre);
+            x.textContent = '×';
+            x.addEventListener('click', () => { b.checked = false; refrescar(); });
+            chip.appendChild(x);
+            chips.appendChild(chip);
+        });
+    }
+
+    boxes.forEach(b => b.addEventListener('change', refrescar));
+
+    if (buscar) {
+        buscar.addEventListener('input', () => {
+            const q = buscar.value.trim().toLowerCase();
+            lista.querySelectorAll('.rep-row').forEach(row => {
+                row.style.display = row.dataset.nombre.includes(q) ? '' : 'none';
+            });
+        });
+    }
+
+    refrescar();
+})();
+</script>
+{% endblock %}

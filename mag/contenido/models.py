@@ -131,7 +131,7 @@ class Indicador(Fechas):
         verbose_name_plural = "Indicadores"
 
     def __str__(self):
-        return f"{self.nombre}"
+        return f"{self.nombre} - {self.pilar.modelo_evaluacion.nombre} - {self.pilar.modelo_evaluacion.version}"
 
 
 class PerfilUsuario(models.Model):

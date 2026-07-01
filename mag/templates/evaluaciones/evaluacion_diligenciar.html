@@ -1,5 +1,6 @@
 {% extends "base/base.html" %}
 {% load l10n %}
+{% load formato %}
 {% block titulo %}Diligenciar evaluación{% endblock %}
 
 {% block estilos_extra %}
@@ -340,7 +341,7 @@ table.matriz tr.fila-solo-lectura .col-sub { opacity: .85; }
                                 <td class="col-pilar" rowspan="{{ fila_pilar.rowspan }}">
                                     {{ pilar.nombre }}
                                     <small style="display:block; font-weight:500; font-size:11px; opacity:.85;">
-                                        Peso {{ pilar.peso }}%
+                                        Peso {{ pilar.peso|decimales }}%
                                     </small>
                                 </td>
                             {% endif %}
@@ -348,7 +349,7 @@ table.matriz tr.fila-solo-lectura .col-sub { opacity: .85; }
                                 <td class="col-indicador" rowspan="{{ fila_ind.rowspan }}">
                                     {{ indicador.nombre }}
                                     <small style="display:block; font-weight:500; font-size:11px; opacity:.85;">
-                                        Peso {{ indicador.peso }}%
+                                        Peso {{ indicador.peso|decimales }}%
                                     </small>
                                     {% if not usuario_es_superuser %}
                                         {% if fila_ind.editable %}
@@ -361,7 +362,7 @@ table.matriz tr.fila-solo-lectura .col-sub { opacity: .85; }
                             {% endif %}
                             <td class="col-sub">
                                 {{ sub.nombre }}
-                                <small>Peso {{ sub.peso }}%</small>
+                                <small>Peso {{ sub.peso|decimales }}%</small>
                                 {% if sub.es_mensual %}
                                     <span class="tipo-tag mensual">Mensual</span>
                                 {% else %}
@@ -386,7 +387,7 @@ table.matriz tr.fila-solo-lectura .col-sub { opacity: .85; }
                                                        name="puntaje_{{ sub.pk }}_{{ mes_num }}"
                                                        data-sub-id="{{ sub.pk }}"
                                                        data-peso="{{ sub.peso|unlocalize }}"
-                                                       value="{{ valor }}"
+                                                       value="{{ valor|decimales }}"
                                                        {% if not sub.editable %}readonly tabindex="-1"{% endif %}
                                                        class="js-puntaje-mes js-decimal">
                                             </label>
@@ -399,7 +400,7 @@ table.matriz tr.fila-solo-lectura .col-sub { opacity: .85; }
                                            name="puntaje_{{ sub.pk }}"
                                            data-peso="{{ sub.peso|unlocalize }}"
                                            data-target="ponderacion_{{ sub.pk }}"
-                                           value="{{ sub.puntaje_actual }}"
+                                           value="{{ sub.puntaje_actual|decimales }}"
                                            {% if not sub.editable %}readonly tabindex="-1"{% endif %}
                                            class="js-puntaje js-decimal">
                                 </td>

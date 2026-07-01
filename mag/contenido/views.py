@@ -27,9 +27,10 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, F, Prefetch, Sum
-from django.http import Http404, HttpResponseRedirect
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils.text import slugify
 from django.views.generic import CreateView, ListView, UpdateView
 
 from .models import (
@@ -42,15 +43,29 @@ from .models import (
 
 # ============================================================== Utilidades
 TWO = Decimal("0.01")
+FIVE = Decimal("0.00001")
 
 
 def _q2(value):
-    """Cuantiza a 2 decimales con ROUND_HALF_UP."""
+    """Cuantiza a 2 decimales con ROUND_HALF_UP (redondeo de presentación)."""
     if value is None:
         return Decimal("0.00")
     if not isinstance(value, Decimal):
         value = Decimal(str(value))
     return value.quantize(TWO, rounding=ROUND_HALF_UP)
+
+
+def _q5(value):
+    """Cuantiza a 5 decimales con ROUND_HALF_UP (tope real de los DecimalField).
+
+    Se usa al *guardar* puntaje/ponderación para conservar la precisión que el
+    usuario captura; el redondeo a 2 decimales queda solo para la presentación.
+    """
+    if value is None:
+        return Decimal("0.00000")
+    if not isinstance(value, Decimal):
+        value = Decimal(str(value))
+    return value.quantize(FIVE, rounding=ROUND_HALF_UP)
 
 
 def _orden_nombre(qs):
@@ -654,6 +669,41 @@ def _pilares_de_categoria(categoria, modelo):
     return unicos
 
 
+def _resolver_actual_anterior(periodos, request):
+    """Resuelve el periodo "actual" (último) y el "anterior" para comparar.
+
+    - `periodo` (GET): periodo principal; por defecto, el más reciente con datos.
+    - `comparar` (GET): periodo de comparación. `"0"` desactiva la comparación;
+      si viene vacío, se usa el inmediatamente anterior con datos.
+
+    Garantiza el **orden cronológico**: de los dos periodos elegidos, "actual"
+    siempre es el más reciente y "anterior" el más antiguo, sin importar cuál se
+    seleccionó como principal o como comparación. Ej.: principal = "Julio - Agosto"
+    y comparar = "Noviembre - Diciembre" ⇒ actual = "Noviembre - Diciembre",
+    anterior = "Julio - Agosto" (la variación siempre lee reciente − antiguo).
+    `periodos` viene del más reciente al más antiguo, así que un índice menor en la
+    lista = periodo más reciente.
+    """
+    actual = _resolver(periodos, request.GET.get("periodo")) or (periodos[0] if periodos else None)
+
+    comparar_raw = request.GET.get("comparar")
+    if comparar_raw == "0":
+        anterior = None
+    else:
+        anterior = _resolver(periodos, comparar_raw)
+        if anterior is None and actual in periodos:
+            idx = periodos.index(actual)
+            anterior = periodos[idx + 1] if idx + 1 < len(periodos) else None
+
+    # Reordena cronológicamente: el más reciente de los dos es el "actual".
+    if (anterior is not None and actual is not None
+            and actual in periodos and anterior in periodos
+            and periodos.index(anterior) < periodos.index(actual)):
+        actual, anterior = anterior, actual
+
+    return actual, anterior, comparar_raw
+
+
 def _resolver_dependencia_contexto(request, solo_publicos=False):
     """Resuelve categoria/modelo/vigencia/periodos/dependencia/pilar desde el GET.
 
@@ -667,16 +717,7 @@ def _resolver_dependencia_contexto(request, solo_publicos=False):
     vigencias = _vigencias_disponibles(categoria, modelo)
     vigencia = _resolver_vigencia(request, vigencias)
     periodos = _periodos_con_datos(categoria, modelo, vigencia, solo_publicos)
-    actual = _resolver(periodos, request.GET.get("periodo")) or (periodos[0] if periodos else None)
-
-    comparar_raw = request.GET.get("comparar")
-    if comparar_raw == "0":
-        anterior = None
-    else:
-        anterior = _resolver(periodos, comparar_raw)
-        if anterior is None and actual in periodos:
-            idx = periodos.index(actual)
-            anterior = periodos[idx + 1] if idx + 1 < len(periodos) else None
+    actual, anterior, comparar_raw = _resolver_actual_anterior(periodos, request)
 
     if categoria:
         dep_qs = Dependencia.objects.filter(**_eval_kwargs(categoria, modelo))
@@ -748,16 +789,7 @@ def _reporte_filtros(request, solo_publicos=True):
     vigencias = _vigencias_disponibles(categoria, modelo)
     vigencia = _resolver_vigencia(request, vigencias)
     periodos = _periodos_con_datos(categoria, modelo, vigencia, solo_publicos=solo_publicos)
-    actual = _resolver(periodos, request.GET.get("periodo")) or (periodos[0] if periodos else None)
-
-    comparar_raw = request.GET.get("comparar")
-    if comparar_raw == "0":
-        anterior = None
-    else:
-        anterior = _resolver(periodos, comparar_raw)
-        if anterior is None and actual in periodos:
-            idx = periodos.index(actual)
-            anterior = periodos[idx + 1] if idx + 1 < len(periodos) else None
+    actual, anterior, comparar_raw = _resolver_actual_anterior(periodos, request)
 
     pilares_disp = _pilares_de_categoria(categoria, modelo)
     pilar = _resolver(pilares_disp, request.GET.get("pilar"))
@@ -1060,6 +1092,172 @@ def dashboard_ranking(request):
 @login_required
 def dashboard_variaciones(request):
     return reporte_variaciones(request, interno=True)
+
+
+# =========================================================================
+#                                REPORTES
+# =========================================================================
+# Genera informes descargables (Excel/PDF) con la evaluación diligenciada de
+# cada dependencia, con la misma jerarquía de la pantalla de evaluación. Los
+# constructores viven en `contenido/reportes.py` (import perezoso para evitar
+# el ciclo views <-> reportes).
+def _deps_en_alcance(categoria, modelo, periodo):
+    """Dependencias con evaluación en el periodo, para la versión (+ categoría)."""
+    if periodo is None or categoria is None:
+        return []
+    return list(
+        Dependencia.objects
+        .filter(evaluacion__periodo=periodo, **_eval_kwargs(categoria, modelo))
+        .distinct().order_by("nombre")
+    )
+
+
+def construir_matriz(evaluacion):
+    """Matriz jerárquica read-only de una evaluación, como dicts planos (sin ORM),
+    lista para los constructores de Excel/PDF. Replica el árbol de la pantalla de
+    evaluación (Pilar → Indicador → Subindicador → Criterios) con puntaje,
+    ponderación y desglose por mes."""
+    meses = meses_del_periodo(evaluacion.periodo)
+    pilares_qs = _orden_nombre(
+        Pilar.objects.filter(modelo_evaluacion=evaluacion.modelo_evaluacion)
+    ).prefetch_related(
+        Prefetch(
+            "indicador_set",
+            queryset=_orden_nombre(Indicador.objects.all()).prefetch_related(
+                Prefetch(
+                    "subindicador_set",
+                    queryset=_orden_nombre(Subindicador.objects.all()).prefetch_related(
+                        Prefetch("criterio_set", queryset=_orden_nombre(Criterio.objects.all())),
+                    ),
+                ),
+            ),
+        )
+    )
+    resultados = {
+        r.subindicador_id: r
+        for r in EvaluacionResultado.objects.filter(evaluacion=evaluacion)
+        .prefetch_related("evaluacionresultadodetalle_set")
+    }
+    detalles = {
+        sid: {d.mes: d for d in r.evaluacionresultadodetalle_set.all()}
+        for sid, r in resultados.items()
+    }
+
+    pilares = []
+    for pilar in pilares_qs:
+        indicadores = []
+        for ind in pilar.indicador_set.all():
+            subs = []
+            for sub in ind.subindicador_set.all():
+                r = resultados.get(sub.pk)
+                dts = detalles.get(sub.pk, {})
+                es_mensual = sub.tipo_calculo == "mensual"
+                subs.append({
+                    "nombre": str(sub.nombre),
+                    "peso": sub.peso,
+                    "tipo": sub.tipo_calculo or "",
+                    "criterios": [(str(c.nombre), c.rango) for c in sub.criterio_set.all()],
+                    "puntaje": r.puntaje if r else None,
+                    "ponderacion": r.ponderacion if r else None,
+                    "observaciones": (r.observaciones or "") if r else "",
+                    "meses": {m: (dts[m].puntaje if m in dts else None) for m, _ in meses}
+                             if es_mensual else {},
+                })
+            indicadores.append({"nombre": str(ind.nombre), "peso": ind.peso, "subindicadores": subs})
+        pilares.append({"nombre": str(pilar.nombre), "peso": pilar.peso, "indicadores": indicadores})
+
+    return {
+        "dependencia": str(evaluacion.dependencia),
+        "categoria": str(evaluacion.categoria) if evaluacion.categoria else "—",
+        "periodo": str(evaluacion.periodo),
+        "vigencia": evaluacion.periodo.vigencia,
+        "version": evaluacion.modelo_evaluacion.version,
+        "meses": [(m, lbl) for m, lbl in meses],
+        "pilares": pilares,
+    }
+
+
+@login_required
+def reportes(request):
+    """Pantalla del compositor de informes: filtros + panel-membrete (cascada GET)."""
+    categorias = _categorias_disponibles()
+    categoria = _resolver_categoria(request, categorias)
+    versiones = _versiones_disponibles()
+    modelo = _resolver_version(request, versiones)
+    periodos = _periodos_con_datos(categoria, modelo, None, solo_publicos=False)
+    periodo = _resolver(periodos, request.GET.get("periodo")) or (periodos[0] if periodos else None)
+    dependencias = _deps_en_alcance(categoria, modelo, periodo)
+    sel_deps = set(request.GET.getlist("dependencia"))
+    return render(request, "reportes/reportes.html", {
+        "categorias": categorias, "categoria": categoria,
+        "versiones": versiones, "version": modelo,
+        "periodos": periodos, "periodo": periodo,
+        "dependencias": dependencias, "sel_deps": sel_deps,
+        "todas_categorias": TODAS_CATEGORIAS,
+    })
+
+
+@login_required
+def reporte_generar(request):
+    """Genera y descarga el informe (Excel o PDF) según los filtros del POST."""
+    if request.method != "POST":
+        return redirect("contenido:reportes")
+
+    categorias = _categorias_disponibles()
+    versiones = _versiones_disponibles()
+
+    try:
+        modelo = int(request.POST.get("modelo"))
+    except (TypeError, ValueError):
+        modelo = None
+    if modelo not in versiones:
+        modelo = _resolver_version(request, versiones)
+
+    cat_raw = request.POST.get("categoria")
+    if cat_raw == "todas":
+        categoria = TODAS_CATEGORIAS
+    else:
+        categoria = _resolver(categorias, cat_raw) or (categorias[0] if categorias else None)
+
+    periodos = _periodos_con_datos(categoria, modelo, None, solo_publicos=False)
+    periodo = _resolver(periodos, request.POST.get("periodo")) or (periodos[0] if periodos else None)
+    if periodo is None or categoria is None:
+        messages.warning(request, "No hay datos para los filtros seleccionados.")
+        return redirect("contenido:reportes")
+
+    alcance = {str(d.pk): d for d in _deps_en_alcance(categoria, modelo, periodo)}
+    elegidas = [pk for pk in request.POST.getlist("dependencia") if pk in alcance]
+    deps = [alcance[pk] for pk in elegidas] if elegidas else list(alcance.values())
+    if not deps:
+        messages.warning(request, "No hay dependencias con evaluación para esos filtros.")
+        return redirect("contenido:reportes")
+
+    items = []
+    for dep in deps:
+        ev = (
+            Evaluacion.objects
+            .filter(dependencia=dep, periodo=periodo, modelo_evaluacion__version=modelo)
+            .select_related("periodo", "dependencia", "modelo_evaluacion", "categoria")
+            .first()
+        )
+        if ev is not None:
+            items.append(construir_matriz(ev))
+    if not items:
+        messages.warning(request, "No se encontraron evaluaciones para generar el informe.")
+        return redirect("contenido:reportes")
+
+    from . import reportes as reportes_mod  # import perezoso (evita ciclo)
+    nombre = "Informe_MAG_{}".format(slugify("{}-{}".format(periodo, periodo.vigencia or "")))
+    if request.POST.get("formato") == "pdf":
+        resp = HttpResponse(reportes_mod.generar_pdf(items), content_type="application/pdf")
+        resp["Content-Disposition"] = 'attachment; filename="{}.pdf"'.format(nombre)
+    else:
+        resp = HttpResponse(
+            reportes_mod.generar_excel(items).getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = 'attachment; filename="{}.xlsx"'.format(nombre)
+    return resp
 
 
 # =========================================================================
@@ -1652,8 +1850,8 @@ def evaluacion_diligenciar(request, pk):
                                 resultado, _ = EvaluacionResultado.objects.update_or_create(
                                     evaluacion=evaluacion, subindicador=sub,
                                     defaults={
-                                        "puntaje": _q2(puntaje_avg),
-                                        "ponderacion": _q2(ponderacion_avg),
+                                        "puntaje": _q5(puntaje_avg),
+                                        "ponderacion": _q5(ponderacion_avg),
                                         "observaciones": observaciones,
                                     },
                                 )
@@ -1661,8 +1859,8 @@ def evaluacion_diligenciar(request, pk):
                                     EvaluacionResultadoDetalle.objects.update_or_create(
                                         resultado=resultado, mes=mes_num,
                                         defaults={
-                                            "puntaje": _q2(puntaje_mes),
-                                            "ponderacion": _q2(ponderaciones_mes[mes_num]),
+                                            "puntaje": _q5(puntaje_mes),
+                                            "ponderacion": _q5(ponderaciones_mes[mes_num]),
                                         },
                                     )
                                 EvaluacionResultadoDetalle.objects.filter(
@@ -1681,8 +1879,8 @@ def evaluacion_diligenciar(request, pk):
                                 EvaluacionResultado.objects.update_or_create(
                                     evaluacion=evaluacion, subindicador=sub,
                                     defaults={
-                                        "puntaje": _q2(puntaje),
-                                        "ponderacion": _q2(ponderacion),
+                                        "puntaje": _q5(puntaje),
+                                        "ponderacion": _q5(ponderacion),
                                         "observaciones": observaciones,
                                     },
                                 )
