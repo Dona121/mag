@@ -261,6 +261,14 @@ def _lat1(s):
     return str(s).encode("latin-1", "replace").decode("latin-1")
 
 
+def _cap(texto, n=1400):
+    """Tope de longitud por celda: evita que un texto enorme (una observación de
+    varios párrafos) genere una fila más alta que la página (fpdf2 no la puede
+    partir → error). n es holgado; el texto real no se ve afectado."""
+    texto = texto or ""
+    return texto if len(texto) <= n else texto[:n].rstrip() + "..."
+
+
 def generar_pdf(items):
     """items: lista de dicts de `construir_matriz`. Devuelve bytes (PDF)."""
     from fpdf import FPDF
@@ -324,12 +332,12 @@ def _pdf_tabla(pdf, it):
     est_pilar = FontFace(emphasis="BOLD", color=RGB_VERDE_SUP, fill_color=RGB_PILAR)
     est_ind = FontFace(emphasis="BOLD", color=RGB_AZUL, fill_color=RGB_IND)
 
-    pdf.set_font("Helvetica", "", 7)
+    pdf.set_font("Helvetica", "", 6.5)
     pdf.set_text_color(*RGB_GRIS)
     pdf.set_draw_color(*RGB_GRIS_CLARO)
     pdf.set_line_width(0.2)
 
-    with pdf.table(col_widths=widths, line_height=4.4, first_row_as_headings=False,
+    with pdf.table(col_widths=widths, line_height=3.8, first_row_as_headings=False,
                    text_align="LEFT", v_align="MIDDLE", borders_layout="ALL") as table:
         # Cabecera en 2 filas: los meses van bajo "Puntaje (0-100)".
         h1 = table.row()
@@ -342,11 +350,11 @@ def _pdf_tabla(pdf, it):
         for _mnum, lbl in meses:
             h2.cell(_lat1(lbl), style=est_head, align="CENTER")
 
-        # Filas con Pilar/Indicador combinados (rowspan), como en la evaluación.
+        # Pilar/Indicador rotulados en la primera fila de su grupo (SIN rowspan: fpdf2
+        # no puede partir un rowspan entre páginas); el color de columna los agrupa.
         for pilar in it["pilares"]:
-            inds = pilar["indicadores"] or [None]
-            pilar_rows = sum(max(len(i["subindicadores"]) if i else 0, 1) for i in inds)
             pilar_txt = _lat1("{}\n(peso {})".format(pilar["nombre"], _pct(pilar["peso"])))
+            inds = pilar["indicadores"] or [None]
             pilar_first = True
             for ind in inds:
                 subs = (ind["subindicadores"] if ind else []) or [None]
@@ -354,23 +362,20 @@ def _pdf_tabla(pdf, it):
                 ind_first = True
                 for sub in subs:
                     row = table.row()
-                    if pilar_first:
-                        row.cell(pilar_txt, rowspan=pilar_rows, style=est_pilar)
-                        pilar_first = False
-                    if ind_first:
-                        row.cell(ind_txt, rowspan=len(subs), style=est_ind)
-                        ind_first = False
+                    row.cell(pilar_txt if pilar_first else "", style=est_pilar)
+                    row.cell(ind_txt if ind_first else "", style=est_ind)
+                    pilar_first = ind_first = False
                     if sub:
                         row.cell(_lat1("{}\n(peso {})".format(sub["nombre"], _pct(sub["peso"]))))
                         row.cell(_lat1((sub["tipo"] or "").capitalize()), align="CENTER")
-                        row.cell(_lat1(_criterios_txt(sub["criterios"])))
+                        row.cell(_lat1(_cap(_criterios_txt(sub["criterios"]))))
                         if sub["tipo"] == "mensual":
                             for mnum, _lbl in meses:
                                 row.cell(_fmt(sub["meses"].get(mnum)), align="CENTER")
                         else:  # directo: combina las celdas de los meses y muestra el puntaje
                             row.cell(_fmt(sub["puntaje"]), colspan=n_meses, align="CENTER")
                         row.cell(_fmt(sub["ponderacion"]), align="CENTER")
-                        row.cell(_lat1(sub.get("observaciones", "")))
+                        row.cell(_lat1(_cap(sub.get("observaciones", ""))))
                     else:
                         row.cell("—")
                         row.cell("", align="CENTER")
