@@ -16,6 +16,8 @@ política del SO), el informe se genera igual, solo sin la imagen.
 
 Paleta y tipografía: tokens del Manual de Identidad (ver GUIA_DISEÑO.md).
 """
+import re
+from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 
@@ -44,15 +46,47 @@ RGB_AZUL = (11, 114, 171)
 RGB_GRIS = (90, 89, 93)
 RGB_GRIS_CLARO = (223, 224, 225)
 
-LOGO_REL = "logos/2025_logo-gob-Sucre_2.png"
+# Logo institucional del encabezado (color, fondo claro). El lockup de la Secretaría de
+# Planeación YA incluye el escudo y el texto "Gobernación de Sucre", así que se usa solo
+# ese (no se repite el logo de Gobernación). La lista admite varios por si se agregan más.
+LOGOS_REL = [
+    "logos/logo-planeacion.png",  # Gobernación de Sucre · Secretaría de Planeación
+]
+MONT_REG = "fonts/Montserrat-Regular.ttf"
+MONT_BOLD = "fonts/Montserrat-Bold.ttf"
 NUMFMT = "0.00###"  # mínimo 2 decimales, hasta 5 (igual que el filtro `decimales`)
 
-COLS_FIJAS = ["Pilar", "Indicador", "Subindicador", "Tipo", "Criterios"]
-COLS_TOTALES = ["Puntaje", "Ponderación"]
+_MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+             "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
 
-def _logo_path():
-    return finders.find(LOGO_REL)
+def _logo_combinado(alto_px=220, sep_px=70):
+    """Compone los logos institucionales en UNA imagen horizontal (lado a lado, misma
+    altura, fondo transparente) para embeber idéntico en Excel y PDF. Devuelve una imagen
+    PIL (RGBA) o None si Pillow no está disponible o no se encuentra ningún archivo
+    (best-effort: el informe se genera igual sin logos)."""
+    try:
+        from PIL import Image
+    except Exception:
+        return None
+    paths = [p for p in (finders.find(rel) for rel in LOGOS_REL) if p]
+    if not paths:
+        return None
+    try:
+        piezas = []
+        for p in paths:
+            im = Image.open(p).convert("RGBA")
+            w = max(1, round(alto_px * im.width / im.height))
+            piezas.append(im.resize((w, alto_px), Image.LANCZOS))
+        ancho = sum(p.width for p in piezas) + sep_px * (len(piezas) - 1)
+        lienzo = Image.new("RGBA", (ancho, alto_px), (0, 0, 0, 0))
+        x = 0
+        for pz in piezas:
+            lienzo.alpha_composite(pz, (x, 0))
+            x += pz.width + sep_px
+        return lienzo
+    except Exception:
+        return None
 
 
 def _fmt(value):
@@ -106,11 +140,17 @@ def generar_excel(items):
     """items: lista de dicts de `construir_matriz`. Devuelve un BytesIO (.xlsx)."""
     wb = Workbook()
     wb.remove(wb.active)
-    logo = _logo_path()
+    # Logo combinado como PNG (bytes) para crear un XLImage nuevo por hoja.
+    logo_png = None
+    li = _logo_combinado()
+    if li is not None:
+        buf = BytesIO()
+        li.save(buf, format="PNG")
+        logo_png = buf.getvalue()
     usados = set()
     for it in items:
         ws = wb.create_sheet(_sheet_title(it["dependencia"], usados))
-        _excel_hoja(ws, it, logo)
+        _excel_hoja(ws, it, logo_png)
     bio = BytesIO()
     wb.save(bio)
     bio.seek(0)
@@ -126,13 +166,13 @@ def _head_cell(ws, r, c, texto, fill, alignment, borde):
     return cell
 
 
-def _excel_hoja(ws, it, logo):
+def _excel_hoja(ws, it, logo_png):
     meses = it["meses"]
     n_meses = len(meses)
-    # Columnas (calca la evaluación): 1 Pilar | 2 Indicador | 3 Subindicador | 4 Tipo |
-    # 5 Criterios | 6..(5+n) meses (bajo "Puntaje 0-100") | (6+n) Ponderación.
-    mes0, mesN = 6, 5 + n_meses
-    col_pond = 6 + n_meses
+    # Columnas (calca la evaluación): 1 Pilar | 2 Indicador | 3 Subindicador |
+    # 4 Criterios | 5..(4+n) meses (bajo "Puntaje 0-100") | (5+n) Ponderación | Observaciones.
+    mes0, mesN = 5, 4 + n_meses
+    col_pond = 5 + n_meses
     col_obs = col_pond + 1
     n_cols = col_obs
 
@@ -155,19 +195,19 @@ def _excel_hoja(ws, it, logo):
     for i, (k, v) in enumerate(info, start=2):
         ws.cell(i, 1, "{}:".format(k)).font = Font(bold=True, color=GRIS_OSC, size=10)
         ws.cell(i, 2, v).font = Font(color=GRIS_OSC, size=10)
-    if logo:
+    if logo_png:
         try:
-            img = XLImage(logo)
-            ratio = (img.width / img.height) if img.height else 3
-            img.height = 58
-            img.width = int(58 * ratio)
-            ws.add_image(img, "{}1".format(get_column_letter(max(1, n_cols - 1))))
+            img = XLImage(BytesIO(logo_png))  # BytesIO nuevo por hoja (no se comparte)
+            ratio = (img.width / img.height) if img.height else 5
+            img.height = 52
+            img.width = int(52 * ratio)
+            ws.add_image(img, "{}1".format(get_column_letter(mes0)))  # banda derecha del encabezado
         except Exception:
-            pass  # sin Pillow: informe igual, sin logo
+            pass  # sin Pillow: informe igual, sin logos
 
     # --- Cabecera de la tabla en 2 filas (7-8) ---
     hr, hr2 = 7, 8
-    fijos = ["Pilar", "Indicador", "Subindicador", "Tipo", "Criterios"]
+    fijos = ["Pilar", "Indicador", "Subindicador", "Criterios"]
     for c, texto in enumerate(fijos, start=1):
         ws.merge_cells(start_row=hr, start_column=c, end_row=hr2, end_column=c)
         _head_cell(ws, hr, c, texto, fill_head, center, borde)
@@ -200,8 +240,7 @@ def _excel_hoja(ws, it, logo):
                     if sub["peso"] is not None:
                         nombre_sub = "{}\n(peso {})".format(sub["nombre"], _pct(sub["peso"]))
                     ws.cell(r, 3, nombre_sub).alignment = left
-                    ws.cell(r, 4, (sub["tipo"] or "").capitalize()).alignment = center
-                    ws.cell(r, 5, _criterios_txt(sub["criterios"])).alignment = left
+                    ws.cell(r, 4, _criterios_txt(sub["criterios"])).alignment = left
                     if sub["tipo"] == "mensual":
                         for mi, (mnum, _lbl) in enumerate(meses):
                             cc = ws.cell(r, mes0 + mi, _num(sub["meses"].get(mnum)))
@@ -227,12 +266,12 @@ def _excel_hoja(ws, it, logo):
                  fill=fill_pilar)
 
     # --- Anchos de columna ---
-    for col, w in (("A", 20), ("B", 22), ("C", 30), ("D", 10), ("E", 34)):
+    for col, w in (("A", 20), ("B", 22), ("C", 30), ("D", 34)):
         ws.column_dimensions[col].width = w
     for mi in range(n_meses):
         ws.column_dimensions[get_column_letter(mes0 + mi)].width = 11
     ws.column_dimensions[get_column_letter(col_pond)].width = 13
-    ws.column_dimensions[get_column_letter(col_obs)].width = 34
+    ws.column_dimensions[get_column_letter(col_obs)].width = 46
     ws.freeze_panes = ws.cell(hr2 + 1, 1)
     ws.sheet_view.showGridLines = False
 
@@ -269,14 +308,73 @@ def _cap(texto, n=1400):
     return texto if len(texto) <= n else texto[:n].rstrip() + "..."
 
 
-def generar_pdf(items):
-    """items: lista de dicts de `construir_matriz`. Devuelve bytes (PDF)."""
+# Emojis/pictogramas que ninguna fuente del PDF renderiza (saldrían como cuadro).
+_EMOJI_RE = re.compile(
+    "[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U00002B00-\U00002BFF\U0000FE00-\U0000FE0F]"
+)
+
+
+def _t(pdf, s):
+    """Texto para el PDF: quita emojis (no hay glifo) y, si la fuente incrustada soporta
+    Unicode (Montserrat) lo usa tal cual; con la core de fallback (Helvetica) sanea latin-1."""
+    s = _EMOJI_RE.sub("", str(s))
+    return s if getattr(pdf, "unicode_ok", False) else _lat1(s)
+
+
+def _fecha_generacion():
+    """'Generado el 1 de julio de 2026, 14:35' (hora local del proyecto)."""
+    try:
+        from django.utils import timezone
+        ahora = timezone.localtime()
+    except Exception:
+        ahora = datetime.now()
+    return "Generado el {} de {} de {}, {:02d}:{:02d}".format(
+        ahora.day, _MESES_ES[ahora.month - 1], ahora.year, ahora.hour, ahora.minute)
+
+
+def _pdf_base():
+    """FPDF con Montserrat incrustada (fallback a Helvetica) y pie de página con
+    la fecha de generación + numeración."""
     from fpdf import FPDF
 
-    pdf = FPDF(orientation="L", unit="mm", format="A4")
-    pdf.set_auto_page_break(True, margin=12)
+    class _InformePDF(FPDF):
+        familia = "Helvetica"
+        unicode_ok = False
+        pie_fecha = ""
+
+        def footer(self):
+            self.set_y(-11)
+            self.set_font(self.familia, "", 7)
+            self.set_text_color(*RGB_GRIS)
+            self.set_draw_color(*RGB_GRIS_CLARO)
+            self.set_line_width(0.2)
+            self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
+            self.ln(1.5)
+            half = (self.w - self.l_margin - self.r_margin) / 2
+            self.cell(half, 5, self.pie_fecha, align="L")
+            self.cell(half, 5, "Página {} de {{nb}}".format(self.page_no()), align="R")
+
+    pdf = _InformePDF(orientation="L", unit="mm", format="A4")
+    reg, bold = finders.find(MONT_REG), finders.find(MONT_BOLD)
+    if reg and bold:
+        try:
+            pdf.add_font("Montserrat", "", reg)
+            pdf.add_font("Montserrat", "B", bold)
+            pdf.familia = "Montserrat"
+            pdf.unicode_ok = True
+        except Exception:
+            pass  # fallback a Helvetica (core) + saneo latin-1
+    return pdf
+
+
+def generar_pdf(items):
+    """items: lista de dicts de `construir_matriz`. Devuelve bytes (PDF)."""
+    pdf = _pdf_base()
+    pdf.pie_fecha = _t(pdf, _fecha_generacion())
+    pdf.alias_nb_pages()
+    pdf.set_auto_page_break(True, margin=14)
     pdf.set_margins(12, 10, 12)
-    logo = _logo_path()
+    logo = _logo_combinado()  # imagen PIL (o None) con ambos logos lado a lado
     for it in items:
         pdf.add_page()
         _pdf_encabezado(pdf, it, logo)
@@ -286,28 +384,29 @@ def generar_pdf(items):
 
 def _pdf_encabezado(pdf, it, logo):
     top = pdf.get_y()
-    if logo:
+    if logo is not None:
         try:
-            pdf.image(logo, x=pdf.w - pdf.r_margin - 42, y=top, h=14)
+            h = 13.0
+            w = h * (logo.width / logo.height)
+            pdf.image(logo, x=pdf.w - pdf.r_margin - w, y=top, h=h)  # alineado a la derecha
         except Exception:
             pass  # sin Pillow: informe igual, sin logo
     pdf.set_xy(pdf.l_margin, top)
-    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_font(pdf.familia, "B", 13)
     pdf.set_text_color(*RGB_VERDE_SUP)
-    pdf.cell(0, 7, _lat1("INFORME · MODELO DE ALTA GERENCIA"), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 7, _t(pdf, "INFORME · MODELO DE ALTA GERENCIA"), new_x="LMARGIN", new_y="NEXT")
 
     per = "{}{}".format(it["periodo"], " · {}".format(it["vigencia"]) if it["vigencia"] else "")
     lineas = [
         ("Categoría", it["categoria"]), ("Dependencia", it["dependencia"]),
         ("Periodo", per), ("Versión", str(it["version"])),
     ]
-    pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(*RGB_GRIS)
     for k, v in lineas:
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(pdf.get_string_width(k + ": ") + 1, 5, _lat1(k + ":"))
-        pdf.set_font("Helvetica", "", 9)
-        pdf.cell(0, 5, " " + _lat1(v), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font(pdf.familia, "B", 9)
+        pdf.cell(pdf.get_string_width(_t(pdf, k + ": ")) + 1, 5, _t(pdf, k + ":"))
+        pdf.set_font(pdf.familia, "", 9)
+        pdf.cell(0, 5, " " + _t(pdf, v), new_x="LMARGIN", new_y="NEXT")
 
     y = pdf.get_y() + 1
     pdf.set_draw_color(*RGB_VERDE_PRIM)
@@ -316,15 +415,38 @@ def _pdf_encabezado(pdf, it, logo):
     pdf.ln(4)
 
 
+def _bordes_jerarquia(pil_starts, ind_starts, n_head):
+    """Borde a medida para fpdf2: en las columnas Pilar (0) e Indicador (1) oculta las
+    líneas horizontales *internas* de cada grupo, dejando solo la de inicio y fin del
+    grupo. Combinado con el relleno de color continuo y el rótulo en la primera fila,
+    esas celdas se ven **combinadas** (jerarquía clara) sin usar `rowspan` —que fpdf2 no
+    puede partir entre páginas—. Las demás columnas conservan todos los bordes."""
+    from fpdf.enums import TableBordersLayout, TableCellStyle
+
+    class _Bordes(TableBordersLayout):
+        def cell_style_getter(self, row_idx, col_idx, col_pos, num_heading_rows,
+                              num_rows, num_col_idx, num_col_pos):
+            if row_idx < n_head or col_idx > 1:
+                return TableCellStyle(left=True, bottom=True, right=True, top=True)
+            starts = pil_starts if col_idx == 0 else ind_starts
+            return TableCellStyle(
+                left=True, right=True,
+                top=row_idx in starts,                                   # borde solo al iniciar grupo
+                bottom=(row_idx + 1 >= num_rows) or ((row_idx + 1) in starts),  # y al terminar
+            )
+
+    return _Bordes()
+
+
 def _pdf_tabla(pdf, it):
     from fpdf.fonts import FontFace
 
     meses = it["meses"]
     n_meses = len(meses)
-    fijos = ["Pilar", "Indicador", "Subindicador", "Tipo", "Criterios"]
+    fijos = ["Pilar", "Indicador", "Subindicador", "Criterios"]
 
     usable = pdf.w - pdf.l_margin - pdf.r_margin
-    base = [24, 28, 34, 13, 44] + [14] * n_meses + [16, 38]
+    base = [24, 28, 34, 44] + [14] * n_meses + [16, 51]
     factor = usable / sum(base)
     widths = [w * factor for w in base]
 
@@ -332,54 +454,62 @@ def _pdf_tabla(pdf, it):
     est_pilar = FontFace(emphasis="BOLD", color=RGB_VERDE_SUP, fill_color=RGB_PILAR)
     est_ind = FontFace(emphasis="BOLD", color=RGB_AZUL, fill_color=RGB_IND)
 
-    pdf.set_font("Helvetica", "", 6.5)
+    # Aplana la jerarquía en filas y marca en qué fila empieza cada grupo Pilar/Indicador
+    # (índices absolutos: la cabecera ocupa N_HEAD filas). Con eso se arma el borde a medida.
+    filas = []
+    for pilar in it["pilares"]:
+        inds = pilar["indicadores"] or [None]
+        pilar_first = True
+        for ind in inds:
+            subs = (ind["subindicadores"] if ind else []) or [None]
+            ind_first = True
+            for sub in subs:
+                filas.append((pilar, ind, sub, pilar_first, ind_first))
+                pilar_first = ind_first = False
+    N_HEAD = 2  # la cabecera ocupa 2 filas
+    pil_starts = {N_HEAD + i for i, f in enumerate(filas) if f[3]}
+    ind_starts = {N_HEAD + i for i, f in enumerate(filas) if f[4]}
+    bordes = _bordes_jerarquia(pil_starts, ind_starts, N_HEAD)
+
+    pdf.set_font(pdf.familia, "", 6.5)
     pdf.set_text_color(*RGB_GRIS)
     pdf.set_draw_color(*RGB_GRIS_CLARO)
     pdf.set_line_width(0.2)
 
     with pdf.table(col_widths=widths, line_height=3.8, first_row_as_headings=False,
-                   text_align="LEFT", v_align="MIDDLE", borders_layout="ALL") as table:
+                   text_align="LEFT", v_align="MIDDLE", borders_layout=bordes) as table:
         # Cabecera en 2 filas: los meses van bajo "Puntaje (0-100)".
         h1 = table.row()
         for t in fijos:
-            h1.cell(_lat1(t), rowspan=2, style=est_head, align="CENTER")
-        h1.cell("Puntaje (0-100)", colspan=n_meses, style=est_head, align="CENTER")
-        h1.cell("Ponderación", rowspan=2, style=est_head, align="CENTER")
-        h1.cell("Observaciones", rowspan=2, style=est_head, align="CENTER")
+            h1.cell(_t(pdf, t), rowspan=2, style=est_head, align="CENTER")
+        h1.cell(_t(pdf, "Puntaje (0-100)"), colspan=n_meses, style=est_head, align="CENTER")
+        h1.cell(_t(pdf, "Ponderación"), rowspan=2, style=est_head, align="CENTER")
+        h1.cell(_t(pdf, "Observaciones"), rowspan=2, style=est_head, align="CENTER")
         h2 = table.row()
         for _mnum, lbl in meses:
-            h2.cell(_lat1(lbl), style=est_head, align="CENTER")
+            h2.cell(_t(pdf, lbl), style=est_head, align="CENTER")
 
-        # Pilar/Indicador rotulados en la primera fila de su grupo (SIN rowspan: fpdf2
-        # no puede partir un rowspan entre páginas); el color de columna los agrupa.
-        for pilar in it["pilares"]:
-            pilar_txt = _lat1("{}\n(peso {})".format(pilar["nombre"], _pct(pilar["peso"])))
-            inds = pilar["indicadores"] or [None]
-            pilar_first = True
-            for ind in inds:
-                subs = (ind["subindicadores"] if ind else []) or [None]
-                ind_txt = _lat1("{}\n(peso {})".format(ind["nombre"], _pct(ind["peso"]))) if ind else "—"
-                ind_first = True
-                for sub in subs:
-                    row = table.row()
-                    row.cell(pilar_txt if pilar_first else "", style=est_pilar)
-                    row.cell(ind_txt if ind_first else "", style=est_ind)
-                    pilar_first = ind_first = False
-                    if sub:
-                        row.cell(_lat1("{}\n(peso {})".format(sub["nombre"], _pct(sub["peso"]))))
-                        row.cell(_lat1((sub["tipo"] or "").capitalize()), align="CENTER")
-                        row.cell(_lat1(_cap(_criterios_txt(sub["criterios"]))))
-                        if sub["tipo"] == "mensual":
-                            for mnum, _lbl in meses:
-                                row.cell(_fmt(sub["meses"].get(mnum)), align="CENTER")
-                        else:  # directo: combina las celdas de los meses y muestra el puntaje
-                            row.cell(_fmt(sub["puntaje"]), colspan=n_meses, align="CENTER")
-                        row.cell(_fmt(sub["ponderacion"]), align="CENTER")
-                        row.cell(_lat1(_cap(sub.get("observaciones", ""))))
-                    else:
-                        row.cell("—")
-                        row.cell("", align="CENTER")
-                        row.cell("")
-                        row.cell("", colspan=n_meses)
-                        row.cell("")
-                        row.cell("")
+        # Pilar/Indicador: solo se rotula la primera fila del grupo; el relleno de color y
+        # el borde a medida hacen que la columna se vea como una celda combinada.
+        for pilar, ind, sub, pilar_first, ind_first in filas:
+            pilar_txt = _t(pdf, "{}\n(peso {})".format(pilar["nombre"], _pct(pilar["peso"])))
+            ind_txt = _t(pdf, "{}\n(peso {})".format(ind["nombre"], _pct(ind["peso"]))) if ind else _t(pdf, "—")
+            row = table.row()
+            row.cell(pilar_txt if pilar_first else "", style=est_pilar, v_align="TOP")
+            row.cell(ind_txt if ind_first else "", style=est_ind, v_align="TOP")
+            if sub:
+                row.cell(_t(pdf, "{}\n(peso {})".format(sub["nombre"], _pct(sub["peso"]))))
+                row.cell(_t(pdf, _cap(_criterios_txt(sub["criterios"]))))
+                if sub["tipo"] == "mensual":
+                    for mnum, _lbl in meses:
+                        row.cell(_fmt(sub["meses"].get(mnum)), align="CENTER")
+                else:  # directo: combina las celdas de los meses y muestra el puntaje
+                    row.cell(_fmt(sub["puntaje"]), colspan=n_meses, align="CENTER")
+                row.cell(_fmt(sub["ponderacion"]), align="CENTER")
+                row.cell(_t(pdf, _cap(sub.get("observaciones", ""))))
+            else:
+                row.cell(_t(pdf, "—"))
+                row.cell("")
+                row.cell("", colspan=n_meses)
+                row.cell("")
+                row.cell("")

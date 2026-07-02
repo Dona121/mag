@@ -41,11 +41,13 @@
     width: 16px; height: 16px; min-width: 16px; flex: none; pointer-events: none;
     stroke: var(--gris-medio); fill: none; stroke-width: 2;
 }
-.rep-search input {
+/* [type="text"] sube la especificidad para ganarle a `form input[type="text"]` de
+   base.html (si no, reimpone padding:9px 12px y el icono queda sobre el placeholder). */
+.rep-search input[type="text"] {
     width: 100%; font-family: inherit; font-size: 13.5px; color: var(--gris-oscuro);
     padding: 9px 12px 9px 40px; border: 1px solid var(--gris-claro); border-radius: var(--radio-base); background: var(--blanco);
 }
-.rep-search input:focus { outline: none; border-color: var(--verde-primario); box-shadow: var(--sombra-foco); }
+.rep-search input[type="text"]:focus { outline: none; border-color: var(--verde-primario); box-shadow: var(--sombra-foco); }
 
 .rep-lista {
     max-height: 320px; overflow: auto; border: 1px solid var(--gris-claro); border-radius: var(--radio-base);
