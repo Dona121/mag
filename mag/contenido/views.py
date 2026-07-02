@@ -26,7 +26,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Count, F, Prefetch, Sum
+from django.db.models import Count, F, Min, Prefetch, Sum
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
@@ -466,22 +466,28 @@ def _total_dependencia(periodo, dependencia, pilar=None, indicador=None):
 
 
 def _puntajes_por_pilar_dependencia(periodo, dependencia, pilar=None, indicador=None):
-    """{pilar_id: {'nombre','orden','total'}} para una dependencia/periodo."""
+    """{pilar_categoria_id: {'nombre','orden','total'}} para una dependencia/periodo.
+
+    Se agrupa por NOMBRE de pilar (PilarCategoria), no por el pk del Pilar: una versión
+    puede abarcar varias estructuras (p. ej. v1-2025 y v1-2026) donde el mismo pilar es un
+    objeto distinto. Agrupar por pk lo duplicaría en la serie de Desempeño; por nombre se
+    consolida. `orden` se toma con Min (mismo nombre = mismo orden entre estructuras).
+    """
     if periodo is None or dependencia is None:
         return {}
     filas = (
         _filtra_resultados(periodo, dependencia, pilar, indicador)
         .values(
-            "subindicador__indicador__pilar",
+            "subindicador__indicador__pilar__nombre",
             "subindicador__indicador__pilar__nombre__nombre",
-            "subindicador__indicador__pilar__orden",
         )
-        .annotate(total=Sum("ponderacion"))
+        .annotate(total=Sum("ponderacion"),
+                  orden=Min("subindicador__indicador__pilar__orden"))
     )
     return {
-        f["subindicador__indicador__pilar"]: {
+        f["subindicador__indicador__pilar__nombre"]: {
             "nombre": f["subindicador__indicador__pilar__nombre__nombre"],
-            "orden": f["subindicador__indicador__pilar__orden"],
+            "orden": f["orden"],
             "total": f["total"] or Decimal("0"),
         }
         for f in filas
