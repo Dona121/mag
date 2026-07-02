@@ -25,7 +25,7 @@
             {% for cat in categorias %}
             <tr>
                 <td><strong>{{ cat.nombre }}</strong></td>
-                <td>{{ cat.n_uso }} vez{{ cat.n_uso|pluralize:"es" }}</td>
+                <td>{{ cat.n_uso }} {{ cat.n_uso|pluralize:"vez,veces" }}</td>
                 <td>
                     <a class="btn btn-sm btn-borde" href="{% url 'contenido:categoria_editar' tipo cat.pk %}">Editar</a>
                 </td>

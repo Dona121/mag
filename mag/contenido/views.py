@@ -1283,7 +1283,7 @@ class ModeloEvaluacionCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy("contenido:modelo_list")
 
     def form_valid(self, form):
-        messages.success(self.request, "Modelo de evaluacion creado correctamente.")
+        messages.success(self.request, "Modelo de evaluación creado correctamente.")
         return super().form_valid(form)
 
 
@@ -1890,7 +1890,7 @@ def evaluacion_diligenciar(request, pk):
                                         "observaciones": observaciones,
                                     },
                                 )
-            messages.success(request, "Evaluacion guardada correctamente.")
+            messages.success(request, "Evaluación guardada correctamente.")
             return redirect("contenido:evaluacion_diligenciar", pk=evaluacion.pk)
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))

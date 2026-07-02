@@ -146,7 +146,7 @@ class Subindicador(Fechas):
     peso = models.DecimalField(max_digits=10, decimal_places=5, verbose_name="Peso")
     tipo_calculo = models.CharField(
         max_length=20,
-        choices=(("mensual", "Mesual"), ("directo", "Directo")),
+        choices=(("mensual", "Mensual"), ("directo", "Directo")),
         null=True,
     )
 

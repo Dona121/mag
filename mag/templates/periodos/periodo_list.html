@@ -59,7 +59,7 @@
                         </form>
                     {% endif %}
                 </td>
-                <td>{{ p.n_evaluaciones }} evaluación{{ p.n_evaluaciones|pluralize:"es" }}</td>
+                <td>{{ p.n_evaluaciones }} {{ p.n_evaluaciones|pluralize:"evaluación,evaluaciones" }}</td>
                 <td>
                     {% if p.activo %}
                         <form method="post" action="{% url 'contenido:periodo_desactivar' p.pk %}" style="margin:0;">
