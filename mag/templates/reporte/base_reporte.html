@@ -73,6 +73,27 @@ body.r-body{
 .d-minis{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
 .d-cols{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
 
+/* -------------------------------------------- SIDEBAR DE FILTROS (público) */
+.r-layout{display:flex; align-items:flex-start; gap:24px; padding:24px 28px 12px;}
+.r-side{flex:0 0 250px; position:sticky; top:16px;}
+.r-side:not(:has(.d-toolbar)){display:none;}          /* sin filtros -> sin columna */
+.r-mainpane{flex:1 1 auto; min-width:0;}
+.r-layout .r-wrap{max-width:none; margin:0; padding:0;}  /* el wrap interno llena la columna */
+.r-layout .d-main{padding-top:0;}
+.r-side .d-toolbar{position:static; background:var(--card); border:1px solid var(--linea);
+  border-radius:14px; box-shadow:var(--sombra); padding:16px 16px 18px; backdrop-filter:none;}
+.r-side .d-toolbar::before{content:"Filtros"; display:block; font-size:11px; font-weight:800;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--surface); margin-bottom:14px;}
+.r-side .d-filtros{flex-direction:column; align-items:stretch; gap:14px; padding:0;}
+.r-side .d-f select{width:100%; min-width:0;}
+.r-side .d-clear{margin:6px 0 0; text-align:center;}
+@media (max-width:900px){
+  .r-layout{flex-direction:column; padding:18px 28px 10px;}
+  .r-side{position:static; flex:none; width:100%;}
+  .r-side .d-filtros{flex-direction:row; flex-wrap:wrap; align-items:flex-end;}
+  .r-side .d-f select{width:auto; min-width:150px;}
+}
+
 /* -------------------------------------------------------------- CARDS */
 .d-card{
   background:var(--card); border:1px solid var(--linea); border-radius:14px;
@@ -228,9 +249,14 @@ body.r-body{
   </div>
 </div>
 
-{% block toolbar %}{% endblock %}
-
-{% block cuerpo %}{% endblock %}
+<div class="r-layout r-wrap">
+  <aside class="r-side">
+    {% block toolbar %}{% endblock %}
+  </aside>
+  <div class="r-mainpane">
+    {% block cuerpo %}{% endblock %}
+  </div>
+</div>
 
 <footer class="d-foot">
   <div class="r-wrap">

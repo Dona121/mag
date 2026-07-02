@@ -302,6 +302,8 @@ los 12.
 | `/reporte/desempeno/` | `reporte_desempeno` | Reporte público — vista Desempeño (por dependencia) |
 | `/reporte/ranking/` | `reporte_ranking` | Reporte público — vista Ranking (pestañas por Categoría) |
 | `/reporte/variaciones/` | `reporte_variaciones` | Reporte público — vista Variaciones |
+| `/reportes/` | `reportes` | **Módulo de Reportes** (con login) — compositor de informes Excel/PDF por dependencia |
+| `/reportes/generar/` | `reporte_generar` | Genera y **descarga** el informe (POST; `formato=excel\|pdf`) |
 | `/auth/login/` | `LoginView` | Inicio de sesión (template rediseñado) |
 | `/auth/logout/` | `LogoutView` | Cierre de sesión |
 | `/auth/password-change/` | `PasswordChangeView` | Cambio de contraseña |
@@ -318,9 +320,9 @@ los 12.
 | `/periodos/<pk>/despublicar/` | `periodo_despublicar` | Marcar `publico=False` (POST) |
 | `/admin/` | django-unfold | Panel administrativo |
 
-> El **rol Evaluador** solo puede acceder a `/`, `/dashboard/*`, `/evaluaciones/`,
-> `/evaluaciones/<pk>/diligenciar/`, auth y el reporte público; el resto lo redirige
-> al listado de evaluaciones (`RolEvaluadorMiddleware`).
+> El **rol Evaluador** solo puede acceder a `/`, `/dashboard/*`, `/reportes/*`,
+> `/evaluaciones/`, `/evaluaciones/<pk>/diligenciar/`, auth y el reporte público; el resto
+> lo redirige al listado de evaluaciones (`RolEvaluadorMiddleware`).
 
 ---
 
@@ -408,6 +410,13 @@ Es **independiente** de la app interna: las plantillas viven en
 del admin). Hay una plantilla base propia, `reporte/base_reporte.html`, que aporta
 masthead, pestañas, pie y el JS compartido (gauge + IntersectionObserver para las
 animaciones de entrada); cada vista la extiende.
+
+Los **filtros** (categoría, versión, vigencia, periodo, comparar, pilar) van en un
+**sidebar izquierdo** (`.r-layout` → `.r-side` con el `.d-toolbar` como tarjeta vertical),
+con el contenido a la derecha; en móvil (<900px) el sidebar se apila arriba. Este layout
+vive **solo** en `base_reporte.html`: el **dashboard interno** usa otra base
+(`base/dashboard_reporte.html`, dentro del shell de la app) con su propio CSS, así que
+**no** se ve afectado aunque comparta las plantillas de vista.
 
 ### Identidad visual
 
@@ -517,6 +526,24 @@ público, el reporte muestra el aviso correspondiente.
     JS guardaba la ponderación de cada fila redondeada a 2 decimales y sumaba eso, dando ~0.02 menos
     que el dashboard. Ahora guarda el valor exacto en `data-exact` por fila y solo redondea el
     **total** (coincide con el dashboard, que suma a 5 decimales y redondea al final).
+11. **Decimales flexibles en pantalla (filtro `decimales`).** Nuevo templatetag
+    `contenido/templatetags/formato.py` → `{{ valor|decimales }}`: muestra **mínimo 2 y hasta 5**
+    decimales, recortando ceros sobrantes (12,5→"12,50"; 33,33333→"33,33333"). Localiza con coma.
+    Se aplica en la pantalla de evaluación (pesos e inputs de puntaje), donde antes salían todos
+    los decimales del `DecimalField`.
+12. **Guardado de la evaluación a 5 decimales (`_q5`).** El POST de `evaluacion_diligenciar`
+    guardaba puntaje/ponderación con `_q2` (2 decimales), recortando lo capturado (75,53785→75,54).
+    Ahora usa **`_q5`** (5 decimales, el tope real del `DecimalField`), consistente con el
+    importador de migración. El `_q2` se conserva solo para el redondeo de **presentación** en
+    dashboard/reporte.
+13. **Periodo actual/anterior en orden cronológico.** El dashboard/reporte tomaba como "anterior"
+    literalmente el periodo elegido en *Comparar con*, sin verificar cuál es más reciente
+    (Jul-Ago vs Nov-Dic ponía Nov-Dic como anterior). El helper **`_resolver_actual_anterior`**
+    (compartido por ambos resolvedores) reordena: el más reciente de los dos siempre es el
+    "actual/último" y el más antiguo el "anterior"; los selectores de la UI se autocorrigen.
+14. **Módulo de Reportes (Excel/PDF).** Nuevo `/reportes/` — ver **sección 15**.
+15. **Reporte público: filtros en sidebar izquierdo.** El panel sticky de filtros del top pasó a
+    un **sidebar a la izquierda** (solo en `base_reporte.html`; el dashboard interno no cambia).
 
 ---
 
@@ -829,3 +856,48 @@ subindicadores: el de v1 (datos solo de 2025) y el de 2026 (datos solo de 2026).
 > o **agregar** uno (p. ej. en 2026 *Unidad del Riesgo* sumó Estratégicos y *Tránsito* —mismo
 > modelo— no). Es esperado; el periodo simplemente no crea resultado para los subindicadores que
 > no aplican.
+
+---
+
+## 15. Módulo de Reportes (Excel / PDF por dependencia)
+
+`/reportes/` (sidebar **General → Reportes**, con login) genera **informes descargables** con la
+evaluación diligenciada de cada dependencia, **calcando la estructura de la pantalla de
+evaluación**. Los constructores viven en `mag/contenido/reportes.py`; las vistas y el armado de
+datos en `views.py`; la plantilla en `templates/reportes/reportes.html`.
+
+### 15.1. Filtros y lógica de alcance
+- **Versión**, **Categoría** (incluye "Todas las categorías") y **Periodo**: selección **única**
+  (cascada por GET, `onchange submit`, reutilizando `_versiones_disponibles`, `_resolver_categoria`,
+  `_periodos_con_datos`, `_eval_kwargs`).
+- **Dependencia**: **opcional / múltiple** (checklist buscable con chips).
+- Alcance (`_deps_en_alcance`): dependencias con `Evaluacion` en ese periodo+versión (y categoría si
+  no es "Todas"). **Sin selección o "Todas"** → todas, **una hoja/página por dependencia**; con
+  selección → solo esas.
+- El POST a `reporte_generar` arma la matriz (`construir_matriz`, read-only) y devuelve el archivo
+  con `HttpResponse` (descarga). **No escribe en BD.**
+
+### 15.2. Estructura del informe (Excel y PDF)
+Columnas **Pilar | Indicador | Subindicador | Tipo | Criterios | [meses bajo "Puntaje (0-100)"] |
+Ponderación | Observaciones**, cabecera de 2 filas, logo de la Gobernación arriba a la derecha e
+info (Categoría · Dependencia · Periodo · Versión).
+- **Pilar/Indicador combinados** por grupo: en Excel con *merge* de celdas; en **PDF sin `rowspan`**
+  (fpdf2 no puede partir un rowspan entre páginas → daba error 500): se rotula en la primera fila del
+  grupo y se colorea la columna.
+- **Meses = área de puntaje**: `mensual` → un valor por mes; **`directo` → celdas de meses
+  combinadas** con el puntaje (no hay columna de puntaje consolidado, igual que en la evaluación).
+- **Pesos** con **2 decimales**; puntaje/ponderación con el filtro min2/max5.
+
+### 15.3. Motores y dependencias
+- **Excel:** `openpyxl` (ya estaba). **PDF:** **`fpdf2`** (Python puro). Se **descartó `reportlab`**
+  porque **importa Pillow al cargar** y en Windows con *Smart App Control* el DLL nativo de Pillow
+  queda **bloqueado por el SO**; `fpdf2` no importa Pillow al cargar.
+- **Logo *best-effort*:** tanto openpyxl como fpdf2 necesitan Pillow para incrustar imágenes; si
+  Pillow no está disponible, el informe se genera **igual, sin el logo** (envuelto en try/except).
+  En Railway (Linux, Pillow OK) el logo **sí** aparece.
+- El PDF usa fuente 6.5 + un tope defensivo (`_cap`, ~1400 chars/celda) para que una observación
+  muy larga no exceda una página (re-dispararía el error de fpdf2).
+
+### 15.4. Permisos
+Ambas vistas llevan `@login_required` y están en `EVALUADOR_URLS_PERMITIDAS` (`roles.py`): las ve
+**todo usuario con login**, incluido el rol Evaluador.

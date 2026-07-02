@@ -7,6 +7,7 @@ el flujo previo en Excel + Power BI por un sistema web con:
 - **Parametrización** del modelo de evaluación (pilares, indicadores, subindicadores, criterios y pesos).
 - **Diligenciamiento** de puntajes por periodo y dependencia, con permisos por indicador.
 - **Dashboard interno** (con login) y **reporte público** (`/reporte/`, sin login), ambos réplica de las 4 vistas del Power BI: **IMAG, Desempeño, Ranking y Variaciones**.
+- **Reportes** descargables en **Excel y PDF** por dependencia (`/reportes/`), con la misma estructura jerárquica de la pantalla de evaluación.
 
 ---
 
@@ -20,6 +21,7 @@ el flujo previo en Excel + Power BI por un sistema web con:
 | Estáticos | WhiteNoise |
 | Gráficos | Chart.js v4 (vendorizado en `mag/static/vendor/`) |
 | Servidor | Gunicorn |
+| Informes | openpyxl (Excel) · fpdf2 (PDF, Python puro) |
 | Tipografía / paleta | Montserrat + colores del Manual de Identidad |
 
 Dependencias en `requirements.txt` (o `pyproject.toml` + `uv.lock`).
@@ -97,7 +99,8 @@ python manage.py collectstatic
 |---|---|---|
 | `/` | login | Inicio (tarjetas de resumen) |
 | `/dashboard/`, `/dashboard/{desempeno,ranking,variaciones}/` | login | Dashboard interno: 4 vistas del reporte **sin** restricción de periodo público (ve todos los periodos) |
-| `/reporte/`, `/reporte/{desempeno,ranking,variaciones}/` | **público** | Reporte de resultados: solo periodos marcados como públicos |
+| `/reporte/`, `/reporte/{desempeno,ranking,variaciones}/` | **público** | Reporte de resultados: solo periodos marcados como públicos (filtros en sidebar izquierdo) |
+| `/reportes/` | login | **Reportes**: genera y descarga informes Excel/PDF por dependencia (filtros: versión, categoría, periodo, dependencia) |
 | `/evaluaciones/` | login | Listado de evaluaciones activas + diligenciamiento |
 | `/modelos/`, `/categorias/...`, `/periodos/` | login | Parametrización y operación |
 | `/admin/` | staff | Admin de Django (django-unfold) |

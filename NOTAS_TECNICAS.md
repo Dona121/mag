@@ -242,6 +242,10 @@ class EvaluacionResultado(Fechas):
   cada evaluación (clave para que `update_or_create` actúe como "upsert"; ver Parte III).
 - `clean()` → **coherencia**: el subindicador debe pertenecer al modelo de la evaluación.
 - Los `indexes` aceleran los filtros del reporte (`filter(evaluacion=…)`, etc.).
+- **Precisión al guardar:** el POST de `evaluacion_diligenciar` persiste `puntaje`/`ponderacion`
+  con **`_q5`** (cuantiza a 5 decimales, el tope del campo); antes usaba `_q2` y recortaba lo
+  capturado. El `_q2` (2 decimales) quedó **solo** para el redondeo de presentación del
+  dashboard/reporte.
 
 ### `EvaluacionResultadoDetalle`
 Desglose **mensual** de un resultado (solo subindicadores `tipo_calculo='mensual'`).
@@ -847,6 +851,11 @@ el navegador deba interpretar:
 - Captura: inputs `type="text" inputmode="decimal" class="js-decimal"` (no `type=number`).
 - Servidor: `_parse_decimal` (Parte II, paso 4). Cliente:
   `partials/decimal_validacion.html` valida en vivo y expone `window.parseNum()`.
+- **Presentación flexible:** el filtro **`decimales`** (`contenido/templatetags/formato.py`,
+  `{{ valor|decimales }}`) muestra **mínimo 2 y hasta 5** decimales recortando ceros (localiza con
+  coma). Se usa en la pantalla de evaluación (pesos e inputs de puntaje). En los informes Excel/PDF
+  (`contenido/reportes.py`) el equivalente para PDF es `_fmt`; los **pesos** van a 2 decimales
+  (`_pct`), y en Excel las celdas numéricas usan el formato `0.00###` (mismo criterio min2/max5).
 
 ---
 
