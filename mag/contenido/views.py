@@ -1877,6 +1877,9 @@ def evaluacion_diligenciar(request, pk):
                                     "puntaje_{}".format(sub.pk), ""
                                 ).strip()
                                 if not puntaje_raw:
+                                    EvaluacionResultado.objects.filter(
+                                        evaluacion=evaluacion, subindicador=sub,
+                                    ).delete()
                                     continue
                                 puntaje = _parse_decimal(
                                     puntaje_raw, "puntaje de «{}»".format(sub), 0, 100
