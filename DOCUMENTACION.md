@@ -257,16 +257,18 @@ Toda entrada decimal (peso, puntaje) se valida con el helper
 
 ### Lógica de ponderación (`views.evaluacion_diligenciar`)
 
-Todos los valores se **cuantizan a 2 decimales** en la captura (`ROUND_HALF_UP`, helper
-`_q2`). Las columnas de la BD admiten más precisión —`peso`/`puntaje`/`ponderacion` son
-`DecimalField(max_digits=10, decimal_places=5)`— que aprovecha la migración del histórico v1
-(que guarda 5 decimales).
+La **persistencia** cuantiza a **5 decimales** (`ROUND_HALF_UP`, helper `_q5`), acorde a
+`peso`/`puntaje`/`ponderacion` = `DecimalField(max_digits=10, decimal_places=5)` (lo que
+aprovecha el histórico v1). El **dashboard/reporte** redondea a 2 decimales (`_q2`) solo para
+mostrar.
 
 - **DIRECTO:**
   ```
   EvaluacionResultado.puntaje     = puntaje
   EvaluacionResultado.ponderacion = puntaje * peso_sub / 100
   ```
+  - Si el campo llega **vacío**, se **elimina** el resultado del subindicador (borrar un
+    puntaje directo y guardar lo quita de verdad; antes quedaba el valor anterior).
 
 - **MENSUAL** (con N meses diligenciados):
   ```
@@ -878,26 +880,66 @@ datos en `views.py`; la plantilla en `templates/reportes/reportes.html`.
   con `HttpResponse` (descarga). **No escribe en BD.**
 
 ### 15.2. Estructura del informe (Excel y PDF)
-Columnas **Pilar | Indicador | Subindicador | Tipo | Criterios | [meses bajo "Puntaje (0-100)"] |
-Ponderación | Observaciones**, cabecera de 2 filas, logo de la Gobernación arriba a la derecha e
-info (Categoría · Dependencia · Periodo · Versión).
+Columnas **Pilar | Indicador | Subindicador | Criterios | [meses bajo "Puntaje (0-100)"] |
+Ponderación | Observaciones**, cabecera de 2 filas, **logo de Planeación** (que ya incluye
+"Gobernación de Sucre") arriba a la derecha e info (Categoría · Dependencia · Periodo · Versión).
+- **Sin columna "Tipo de cálculo":** se retiró y su ancho se redistribuyó hacia Observaciones.
 - **Pilar/Indicador combinados** por grupo: en Excel con *merge* de celdas; en **PDF sin `rowspan`**
-  (fpdf2 no puede partir un rowspan entre páginas → daba error 500): se rotula en la primera fila del
-  grupo y se colorea la columna.
+  (fpdf2 no puede partir un rowspan entre páginas → daba error 500): se suprimen los bordes
+  horizontales internos de esas dos columnas (`_bordes_jerarquia`) para dar el efecto de celda unida
+  y se rotula en la primera fila del grupo.
 - **Meses = área de puntaje**: `mensual` → un valor por mes; **`directo` → celdas de meses
   combinadas** con el puntaje (no hay columna de puntaje consolidado, igual que en la evaluación).
 - **Pesos** con **2 decimales**; puntaje/ponderación con el filtro min2/max5.
+- **PDF con tipografía Montserrat** (TTF embebido con `add_font`; *fallback* a Helvetica si no se
+  encuentra la fuente) y **pie de página** con la **fecha de generación** (izquierda) y "Página N de
+  {total}" (derecha, vía `alias_nb_pages`). Los emojis de las observaciones se **eliminan** antes de
+  imprimir (Montserrat no trae esos glifos).
 
 ### 15.3. Motores y dependencias
-- **Excel:** `openpyxl` (ya estaba). **PDF:** **`fpdf2`** (Python puro). Se **descartó `reportlab`**
-  porque **importa Pillow al cargar** y en Windows con *Smart App Control* el DLL nativo de Pillow
-  queda **bloqueado por el SO**; `fpdf2` no importa Pillow al cargar.
-- **Logo *best-effort*:** tanto openpyxl como fpdf2 necesitan Pillow para incrustar imágenes; si
-  Pillow no está disponible, el informe se genera **igual, sin el logo** (envuelto en try/except).
-  En Railway (Linux, Pillow OK) el logo **sí** aparece.
-- El PDF usa fuente 6.5 + un tope defensivo (`_cap`, ~1400 chars/celda) para que una observación
-  muy larga no exceda una página (re-dispararía el error de fpdf2).
+- **Excel:** `openpyxl`. **PDF:** **`fpdf2`** (Python puro). Se **mantiene `fpdf2`** (no `reportlab`):
+  resuelve el corte de página de las celdas combinadas y conserva el trabajo de Montserrat, además de
+  ser Python puro (seguro para Railway).
+- **Logo e imágenes con Pillow:** incrustar el logo necesita Pillow. En un momento estuvo bloqueado en
+  el equipo local por *Smart App Control* de Windows; tras desactivar esa opción **Pillow ya funciona**
+  y el logo aparece también en local. Aun así, la incrustación va envuelta en try/except: si Pillow no
+  estuviera disponible, el informe se genera **igual, sin el logo**.
+- El PDF usa fuente pequeña + un tope defensivo por celda para que una observación muy larga no exceda
+  una página (re-dispararía el error de fpdf2).
 
 ### 15.4. Permisos
 Ambas vistas llevan `@login_required` y están en `EVALUADOR_URLS_PERMITIDAS` (`roles.py`): las ve
 **todo usuario con login**, incluido el rol Evaluador.
+
+---
+
+## 16. Pruebas automatizadas (tests)
+
+Suite de tests en el paquete `mag/contenido/tests/`. Cubre el **CRUD** de los módulos, las
+**reglas de integridad** de la BD y el **control de acceso**.
+
+**Cómo correrla** (desde la carpeta `mag/`, siempre con el settings de test):
+
+```bash
+python manage.py test contenido --settings=mag.settings_test
+#  Windows:  $env:PYTHONUTF8="1";  antes del comando (acentos en consola)
+```
+
+`mag/mag/settings_test.py` hereda de `settings.py` y solo cambia la **base de datos a SQLite en
+memoria**. Es lo importante: sin ese override, Django intentaría crear la BD de test en
+**Supabase/Railway** (vía `DATABASE_URL`) — lento y sin permisos. La BD de test se crea y destruye
+en cada corrida: **nunca toca datos reales**. También usa un hasher de contraseñas rápido y
+almacenamiento estático sin *manifest* (no exige `collectstatic`).
+
+**Qué cubre:**
+
+| Módulo | Alcance |
+|---|---|
+| `tests/base.py` | Fixture común: árbol completo (Modelo→Pilar→Indicador→Subindicador→Criterio), Dependencia con modelo activo, Categoría y Periodo con meses; helpers |
+| `test_parametrizacion.py` | CRUD web de catálogos y estructura |
+| `test_evaluaciones.py` | Crear evaluación + diligenciar (alta/edición/**borrado** de resultados directos y mensuales; **regresión** del borrado de puntaje directo) |
+| `test_periodos.py` | Activar/desactivar, publicar/despublicar, umbral/vigencia (solo por POST) |
+| `test_acceso.py` | Login requerido, restricciones del rol Evaluador, reporte público anónimo y generación Excel/PDF |
+| `test_modelos_orm.py` | Borrado + cascada y restricciones de integridad (unique, `clean()`) a nivel ORM |
+
+Detalle técnico (settings de test, notas de fidelidad) en `NOTAS_TECNICAS.md`, Parte VII.

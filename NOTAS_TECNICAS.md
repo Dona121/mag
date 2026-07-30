@@ -567,19 +567,27 @@ with transaction.atomic():
 
 ```python
 puntaje_raw = request.POST.get("puntaje_%s" % sub.pk, "").strip()
-if not puntaje_raw:
-    continue                                       # sin dato → no se guarda
+if not puntaje_raw:                                # el campo llegó vacío…
+    EvaluacionResultado.objects.filter(            # …se BORRA el resultado (si existía)
+        evaluacion=evaluacion, subindicador=sub).delete()
+    continue
 puntaje = _parse_decimal(puntaje_raw, "puntaje de «%s»" % sub, 0, 100)
 ponderacion = puntaje * peso_sub / Decimal("100")  # fórmula base
 EvaluacionResultado.objects.update_or_create(      # upsert por (evaluacion, subindicador)
     evaluacion=evaluacion, subindicador=sub,
-    defaults={"puntaje": _q2(puntaje), "ponderacion": _q2(ponderacion),
+    defaults={"puntaje": _q5(puntaje), "ponderacion": _q5(ponderacion),
               "observaciones": observaciones})
 ```
 
 Con *Ejecución presupuestal* (peso 5.40) y puntaje **80**:
-`ponderacion = 80 × 5.40 / 100 = 4.32`. → `_q2(...)` cuantiza a 2 decimales con
-`ROUND_HALF_UP`.
+`ponderacion = 80 × 5.40 / 100 = 4.32`. → `_q5(...)` cuantiza a 5 decimales con
+`ROUND_HALF_UP` (4.32000).
+
+> **Borrar un puntaje directo** (vaciar el campo y guardar) elimina su
+> `EvaluacionResultado`, igual que el caso `mensual` cuando no llega ningún mes.
+> Antes hacía `continue` sin borrar, así que el valor viejo "reaparecía" al recargar
+> — corregido. Solo afecta a indicadores que el usuario puede editar (los no
+> editables se saltan antes con el `continue` de permisos).
 
 **Caso `mensual`** — un valor por mes, y el resultado guarda el **promedio**:
 
@@ -601,13 +609,13 @@ ponderacion_avg = sum(ponderaciones_mes.values()) / n     # promedio de ponderac
 
 resultado, _ = EvaluacionResultado.objects.update_or_create(
     evaluacion=evaluacion, subindicador=sub,
-    defaults={"puntaje": _q2(puntaje_avg), "ponderacion": _q2(ponderacion_avg),
+    defaults={"puntaje": _q5(puntaje_avg), "ponderacion": _q5(ponderacion_avg),
               "observaciones": observaciones})
 
 for mes_num, p in puntajes_mes.items():            # un detalle por mes
     EvaluacionResultadoDetalle.objects.update_or_create(
         resultado=resultado, mes=mes_num,
-        defaults={"puntaje": _q2(p), "ponderacion": _q2(ponderaciones_mes[mes_num])})
+        defaults={"puntaje": _q5(p), "ponderacion": _q5(ponderaciones_mes[mes_num])})
 
 EvaluacionResultadoDetalle.objects.filter(resultado=resultado)\
     .exclude(mes__in=puntajes_mes.keys()).delete()  # limpia meses que ya no llegan
@@ -624,6 +632,10 @@ Con *Avance mensual* (peso 3.60) y puntajes Ene=90, Feb=70, Mar=80:
 Todo corre dentro de `transaction.atomic()`: si cualquier `_parse_decimal` lanza
 `ValidationError`, **se revierte el guardado completo** y se muestra el error — no quedan
 resultados a medias.
+
+> **`_q5` vs `_q2`:** la **persistencia** (`EvaluacionResultado`/`…Detalle`) cuantiza a
+> **5 decimales** con `_q5` (coincide con `decimal_places=5` del campo); el **dashboard**
+> y el reporte redondean a **2 decimales** con `_q2` solo para **mostrar**.
 
 > **`update_or_create` y el constraint:** funciona como "upsert" gracias a
 > `UniqueConstraint(evaluacion, subindicador)` y `UniqueConstraint(resultado, mes)`:
@@ -955,3 +967,41 @@ Si en algún momento la `SECRET_KEY` o la contraseña de la base de datos quedan
   producción.
 - Nunca versionar secretos: viven solo en `mag/.env` (local, ignorado) y en las variables
   de entorno del servicio (producción).
+
+
+# Parte VII — Suite de tests
+
+La app `contenido` tiene una suite de tests (paquete `mag/contenido/tests/`) que cubre el
+CRUD de los módulos, las reglas de integridad de la BD y el control de acceso.
+
+## Cómo correrla
+
+Siempre con el settings de test, **desde la carpeta `mag/`**:
+
+```bash
+python manage.py test contenido --settings=mag.settings_test
+# Windows (acentos en consola):  $env:PYTHONUTF8="1";  antes del comando
+```
+
+`mag/mag/settings_test.py` hereda de `settings.py` y solo sobreescribe:
+
+- **`DATABASES`** → SQLite **en memoria** (`:memory:`). Es lo importante: sin este override
+  Django intentaría **crear la BD de test en Supabase/Railway** (vía `DATABASE_URL`), lento y
+  sin permisos. La BD de test se crea y se destruye en cada corrida; **no toca datos reales**.
+- **`PASSWORD_HASHERS`** → MD5 (acelera `create_user`/`login`).
+- **`STORAGES`** → almacenamiento estático sin *manifest* (no exige `collectstatic`).
+
+## Qué cubre
+
+| Módulo de test | Cobertura |
+|---|---|
+| `tests/base.py` | Fixture común: árbol completo (Modelo→Pilar→Indicador→Subindicador→Criterio), Dependencia + `DependenciaModelo` activo, Categoría y Periodo con meses; helpers de login y de rol Evaluador |
+| `test_parametrizacion.py` | CRUD web de catálogos y de la estructura (modelo, pilar, indicador, subindicador, criterio) |
+| `test_evaluaciones.py` | Crear evaluación (deriva modelo activo, rechaza duplicado periodo+dependencia) y **diligenciar**: alta/edición/**borrado** de resultados directos y mensuales (incluye la **regresión** del borrado de puntaje directo) |
+| `test_periodos.py` | Activar/desactivar, publicar/despublicar y umbral/vigencia (solo por POST) |
+| `test_acceso.py` | Login requerido, restricciones del rol Evaluador (middleware deny-by-default), reporte público anónimo y generación de Excel/PDF |
+| `test_modelos_orm.py` | Borrado + cascada y restricciones de integridad (unique constraints, `clean()`) directamente sobre el ORM — el *Delete* que la capa web no expone |
+
+> **Nota de fidelidad:** un `<select>` real nunca envía cadena vacía, y `Evaluacion.save()`
+> valida el `UniqueConstraint` vía `full_clean()` (por eso el duplicado lanza
+> `ValidationError`, no `IntegrityError`). Los tests reflejan ese comportamiento real.

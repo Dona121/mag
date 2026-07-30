@@ -37,6 +37,8 @@ modelo_alta_gerencia/
 │   ├── .env                  # variables de entorno (NO versionar)
 │   ├── mag/                  # proyecto (settings.py, urls.py, wsgi.py)
 │   ├── contenido/            # app principal (models, views, urls, admin, roles, middleware)
+│   │   └── tests/            # suite de tests (CRUD, integridad, acceso)
+│   ├── mag/settings_test.py  # settings SOLO para tests (SQLite en memoria)
 │   ├── templates/            # base/, reporte/, evaluaciones/, periodos/, modelos/, registration/
 │   └── static/               # css/, logos/, vendor/
 ├── DOCUMENTACION.md          # documentación funcional y técnica detallada
@@ -90,6 +92,20 @@ imágenes/CSS hay que correr:
 ```bash
 python manage.py collectstatic
 ```
+
+---
+
+## Tests
+
+Suite de tests (CRUD de los módulos, integridad de la BD y control de acceso) en
+`mag/contenido/tests/`. Correr **desde `mag/`** con el settings de test, que usa **SQLite en
+memoria** para no tocar la base de datos remota:
+
+```bash
+python manage.py test contenido --settings=mag.settings_test
+```
+
+Detalle en `NOTAS_TECNICAS.md` (Parte VII) y `DOCUMENTACION.md` (§16).
 
 ---
 
