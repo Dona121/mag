@@ -45,10 +45,12 @@
 {% if categorias %}
 <div class="d-cat">
   <div class="r-wrap">
+    {% comment %}`querystring` conserva los demás filtros (versión/vigencia/periodo/pilar) y solo
+    cambia `categoria`; con `?categoria=X` pelado se perdían al cambiar de categoría.{% endcomment %}
     <nav class="d-cat-tabs">
-      <a href="?categoria=todas" class="{% if sel_categoria.pk == 'todas' %}activo{% endif %}">Todas las categorías</a>
+      <a href="{% querystring categoria='todas' %}" class="{% if sel_categoria.pk == 'todas' %}activo{% endif %}">Todas las categorías</a>
       {% for c in categorias %}
-      <a href="?categoria={{ c.pk }}" class="{% if sel_categoria and c.pk == sel_categoria.pk %}activo{% endif %}">{{ c }}</a>
+      <a href="{% querystring categoria=c.pk %}" class="{% if sel_categoria and c.pk == sel_categoria.pk %}activo{% endif %}">{{ c }}</a>
       {% endfor %}
     </nav>
   </div>

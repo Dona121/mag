@@ -18,7 +18,7 @@ Paleta y tipografía: tokens del Manual de Identidad (ver GUIA_DISEÑO.md).
 """
 import re
 from datetime import datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from io import BytesIO
 
 from django.contrib.staticfiles import finders
@@ -45,6 +45,11 @@ RGB_IND = (233, 244, 234)
 RGB_AZUL = (11, 114, 171)
 RGB_GRIS = (90, 89, 93)
 RGB_GRIS_CLARO = (223, 224, 225)
+# Separador entre pilares: mismo ancho (0.2) que el resto de la grilla, pero un gris algo más
+# oscuro para que la línea SÍ se vea sobre el relleno de las columnas Pilar/Indicador (el gris
+# claro de la grilla queda invisible ahí porque tiene casi la misma luminancia que el verde).
+RGB_SEP_PILAR = (150, 152, 156)
+SEP_PILAR_W = 0.2
 
 # Logo institucional del encabezado (color, fondo claro). El lockup de la Secretaría de
 # Planeación YA incluye el escudo y el texto "Gobernación de Sucre", así que se usa solo
@@ -115,6 +120,19 @@ def _num(value):
 
 def _criterios_txt(criterios):
     return "\n".join("{}: {}".format(n, r) for n, r in criterios) if criterios else ""
+
+
+def _total_ponderado(it):
+    """Puntaje total de la dependencia = suma de la ponderación de todos los
+    subindicadores (los sin resultado no suman). Devuelve un Decimal."""
+    total = Decimal("0")
+    for pilar in it["pilares"]:
+        for ind in pilar["indicadores"]:
+            for sub in ind["subindicadores"]:
+                p = sub.get("ponderacion")
+                if p is not None:
+                    total += p if isinstance(p, Decimal) else Decimal(str(p))
+    return total
 
 
 # ===========================================================================
@@ -264,6 +282,23 @@ def _excel_hoja(ws, it, logo_png):
         _merge_v(ws, 1, pilar_ini, r - 1,
                  "{}\n(peso {})".format(pilar["nombre"], _pct(pilar["peso"])), center, borde,
                  fill=fill_pilar)
+
+    # --- Fila de total: puntaje de la dependencia = suma de la ponderación ---
+    fill_total = PatternFill("solid", fgColor=VERDE_CLARO)  # verde bajo
+    font_total = Font(bold=True, size=10, color=VERDE_SUP)
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=col_pond - 1)
+    lbl = ws.cell(r, 1, "PUNTAJE TOTAL DE LA DEPENDENCIA")
+    lbl.font = font_total
+    lbl.alignment = Alignment(horizontal="left", vertical="center")
+    total = _total_ponderado(it).quantize(Decimal("0.01"), ROUND_HALF_UP)
+    ct = ws.cell(r, col_pond, _num(total))
+    ct.number_format = "0.00"  # puntaje total con exactamente 2 decimales
+    ct.font = font_total
+    ct.alignment = center
+    for c in range(1, n_cols + 1):  # relleno + borde en toda la fila (incl. celdas combinadas)
+        cell = ws.cell(r, c)
+        cell.fill = fill_total
+        cell.border = borde
 
     # --- Anchos de columna ---
     for col, w in (("A", 20), ("B", 22), ("C", 30), ("D", 34)):
@@ -415,27 +450,66 @@ def _pdf_encabezado(pdf, it, logo):
     pdf.ln(4)
 
 
-def _bordes_jerarquia(pil_starts, ind_starts, n_head):
+def _bordes_jerarquia(pil_starts, ind_starts, n_head, full_rows=frozenset(),
+                      pil_sep=frozenset()):
     """Borde a medida para fpdf2: en las columnas Pilar (0) e Indicador (1) oculta las
     líneas horizontales *internas* de cada grupo, dejando solo la de inicio y fin del
     grupo. Combinado con el relleno de color continuo y el rótulo en la primera fila,
     esas celdas se ven **combinadas** (jerarquía clara) sin usar `rowspan` —que fpdf2 no
-    puede partir entre páginas—. Las demás columnas conservan todos los bordes."""
-    from fpdf.enums import TableBordersLayout, TableCellStyle
+    puede partir entre páginas—. Las demás columnas conservan todos los bordes;
+    `full_rows` fuerza todos los bordes en filas concretas (p. ej. la de total).
+    `pil_sep` = filas que inician un nuevo pilar: su borde superior se dibuja como
+    **separador de pilar** (todo el ancho) con un gris que sí contrasta con el relleno
+    verde/azulado (el gris claro de la grilla ahí es invisible)."""
+    from fpdf.enums import TableBordersLayout, TableBorderStyle, TableCellStyle
+
+    sep = TableBorderStyle(color=RGB_SEP_PILAR, thickness=SEP_PILAR_W)
 
     class _Bordes(TableBordersLayout):
         def cell_style_getter(self, row_idx, col_idx, col_pos, num_heading_rows,
                               num_rows, num_col_idx, num_col_pos):
-            if row_idx < n_head or col_idx > 1:
-                return TableCellStyle(left=True, bottom=True, right=True, top=True)
+            top_sep = sep if row_idx in pil_sep else None  # separador entre pilares
+            if row_idx < n_head or col_idx > 1 or row_idx in full_rows:
+                return TableCellStyle(left=True, bottom=True, right=True,
+                                      top=top_sep if top_sep is not None else True)
             starts = pil_starts if col_idx == 0 else ind_starts
+            top = top_sep if top_sep is not None else (row_idx in starts)
             return TableCellStyle(
                 left=True, right=True,
-                top=row_idx in starts,                                   # borde solo al iniciar grupo
+                top=top,                                                 # borde/separador al iniciar grupo
                 bottom=(row_idx + 1 >= num_rows) or ((row_idx + 1) in starts),  # y al terminar
             )
 
     return _Bordes()
+
+
+def _filas_rotulo(pilares):
+    """Fila (índice base 0 dentro del cuerpo de la tabla) donde va el rótulo de cada
+    Pilar/Indicador, centrado por **estructura** para que la jerarquía quede alineada:
+
+      - **Indicador** → su subindicador **medio, sesgado hacia arriba**
+        (`inicio + (n_subindicadores - 1) // 2`): con número par elige el **superior** de los
+        dos centrales; con impar queda en el medio exacto.
+      - **Pilar** → el rótulo de su indicador **medio, también sesgado hacia arriba**
+        (`(n_indicadores - 1) // 2`), de modo que el rótulo del pilar quede a la altura del de
+        su indicador central (par → el superior de los dos centrales).
+
+    Replica el mismo aplanado que `_pdf_tabla` (un `None` cuando un pilar/indicador no tiene
+    hijos, que igual ocupa una fila). Devuelve `(pil_label, ind_label)` como conjuntos de
+    índices de fila."""
+    pil_label, ind_label = set(), set()
+    r = 0
+    for pilar in pilares:
+        inds = pilar["indicadores"] or [None]
+        filas_ind = []  # fila del rótulo de cada indicador del pilar
+        for ind in inds:
+            subs = (ind["subindicadores"] if ind else []) or [None]
+            fila = r + (len(subs) - 1) // 2  # medio sesgado hacia arriba (par → superior)
+            ind_label.add(fila)
+            filas_ind.append(fila)
+            r += len(subs)
+        pil_label.add(filas_ind[(len(filas_ind) - 1) // 2])  # indicador medio (sesgo arriba)
+    return pil_label, ind_label
 
 
 def _pdf_tabla(pdf, it):
@@ -449,35 +523,42 @@ def _pdf_tabla(pdf, it):
     base = [24, 28, 34, 44] + [14] * n_meses + [16, 51]
     factor = usable / sum(base)
     widths = [w * factor for w in base]
+    line_h = 3.8  # alto por línea de la tabla (debe coincidir con pdf.table(line_height=...))
 
     est_head = FontFace(emphasis="BOLD", color=(255, 255, 255), fill_color=RGB_VERDE_SUP)
     est_pilar = FontFace(emphasis="BOLD", color=RGB_VERDE_SUP, fill_color=RGB_PILAR)
     est_ind = FontFace(emphasis="BOLD", color=RGB_AZUL, fill_color=RGB_IND)
+    est_total = FontFace(emphasis="BOLD", color=RGB_VERDE_SUP, fill_color=RGB_PILAR)  # verde bajo
 
-    # Aplana la jerarquía en filas y marca en qué fila empieza cada grupo Pilar/Indicador
-    # (índices absolutos: la cabecera ocupa N_HEAD filas). Con eso se arma el borde a medida.
+    # Aplana la jerarquía en filas (una por subindicador) y guarda dónde empieza cada grupo
+    # Pilar/Indicador para el borde a medida (fpdf2 no puede partir un rowspan entre páginas,
+    # así que el rótulo va en una sola fila y el "merge" se simula con bordes+relleno).
     filas = []
+    pil_starts, ind_starts = set(), set()
+    N_HEAD = 2  # la cabecera ocupa 2 filas
     for pilar in it["pilares"]:
         inds = pilar["indicadores"] or [None]
-        pilar_first = True
+        pil_starts.add(N_HEAD + len(filas))
         for ind in inds:
-            subs = (ind["subindicadores"] if ind else []) or [None]
-            ind_first = True
-            for sub in subs:
-                filas.append((pilar, ind, sub, pilar_first, ind_first))
-                pilar_first = ind_first = False
-    N_HEAD = 2  # la cabecera ocupa 2 filas
-    pil_starts = {N_HEAD + i for i, f in enumerate(filas) if f[3]}
-    ind_starts = {N_HEAD + i for i, f in enumerate(filas) if f[4]}
-    bordes = _bordes_jerarquia(pil_starts, ind_starts, N_HEAD)
+            ind_starts.add(N_HEAD + len(filas))
+            for sub in (ind["subindicadores"] if ind else []) or [None]:
+                filas.append((pilar, ind, sub))
+    total_row_idx = N_HEAD + len(filas)  # la fila de total va al final, con todos los bordes
+    pil_sep = pil_starts - {N_HEAD}  # separador entre pilares (todos los inicios menos el primero)
+    bordes = _bordes_jerarquia(pil_starts, ind_starts, N_HEAD, {total_row_idx}, pil_sep)
+
+    # Rótulo de Pilar/Indicador centrado por **estructura** (no por altura de píxeles): el
+    # indicador en su subindicador medio y el pilar en el rótulo de su indicador medio, de modo
+    # que el rótulo del pilar quede alineado con el de su indicador central.
+    pil_label, ind_label = _filas_rotulo(it["pilares"])
 
     pdf.set_font(pdf.familia, "", 6.5)
     pdf.set_text_color(*RGB_GRIS)
     pdf.set_draw_color(*RGB_GRIS_CLARO)
     pdf.set_line_width(0.2)
 
-    with pdf.table(col_widths=widths, line_height=3.8, first_row_as_headings=False,
-                   text_align="LEFT", v_align="MIDDLE", borders_layout=bordes) as table:
+    with pdf.table(col_widths=widths, line_height=line_h, first_row_as_headings=False,
+                   text_align="CENTER", v_align="MIDDLE", borders_layout=bordes) as table:
         # Cabecera en 2 filas: los meses van bajo "Puntaje (0-100)".
         h1 = table.row()
         for t in fijos:
@@ -489,14 +570,15 @@ def _pdf_tabla(pdf, it):
         for _mnum, lbl in meses:
             h2.cell(_t(pdf, lbl), style=est_head, align="CENTER")
 
-        # Pilar/Indicador: solo se rotula la primera fila del grupo; el relleno de color y
-        # el borde a medida hacen que la columna se vea como una celda combinada.
-        for pilar, ind, sub, pilar_first, ind_first in filas:
+        # Pilar/Indicador: se rotula solo la fila elegida por `_filas_rotulo` (indicador en su
+        # subindicador medio, pilar en su indicador medio) con v_align MIDDLE; el relleno de
+        # color y el borde a medida hacen que la columna se vea como una celda combinada.
+        for i, (pilar, ind, sub) in enumerate(filas):
             pilar_txt = _t(pdf, "{}\n(peso {})".format(pilar["nombre"], _pct(pilar["peso"])))
             ind_txt = _t(pdf, "{}\n(peso {})".format(ind["nombre"], _pct(ind["peso"]))) if ind else _t(pdf, "—")
             row = table.row()
-            row.cell(pilar_txt if pilar_first else "", style=est_pilar, v_align="TOP")
-            row.cell(ind_txt if ind_first else "", style=est_ind, v_align="TOP")
+            row.cell(pilar_txt if i in pil_label else "", style=est_pilar, v_align="MIDDLE")
+            row.cell(ind_txt if i in ind_label else "", style=est_ind, v_align="MIDDLE")
             if sub:
                 row.cell(_t(pdf, "{}\n(peso {})".format(sub["nombre"], _pct(sub["peso"]))))
                 row.cell(_t(pdf, _cap(_criterios_txt(sub["criterios"]))))
@@ -513,3 +595,11 @@ def _pdf_tabla(pdf, it):
                 row.cell("", colspan=n_meses)
                 row.cell("")
                 row.cell("")
+
+        # Fila de total: puntaje de la dependencia = suma de la ponderación (2 decimales)
+        total = _total_ponderado(it).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        tr = table.row()
+        tr.cell(_t(pdf, "PUNTAJE TOTAL DE LA DEPENDENCIA"), colspan=4 + n_meses,
+                style=est_total, align="LEFT")
+        tr.cell(_fmt(total), style=est_total, align="CENTER")
+        tr.cell("", style=est_total)

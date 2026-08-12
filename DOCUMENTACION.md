@@ -388,6 +388,14 @@ todos los periodos). En resumen:
   nombre. Helpers `_resolver`, `_versiones_disponibles`/`_resolver_version`,
   `_periodos_con_datos(categoria, modelo, vigencia, solo_publicos)`, `_reporte_filtros`,
   `_resolver_dependencia_contexto`. Parámetros inválidos caen al valor por defecto.
+- **Los filtros se conservan al navegar entre secciones.** Las pestañas de sección de ambos
+  cascarones (`base/dashboard_reporte.html` interno y `reporte/base_reporte.html` público) adjuntan
+  el query string actual — `{% url ... %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}`
+  (el guard evita un `?` colgando sin filtros). En **Ranking**, las pestañas de **categoría** usan el
+  tag built-in de Django 5.1+ **`{% querystring categoria=... %}`**, que cambia solo `categoria` y
+  conserva versión/vigencia/periodo/pilar (antes `?categoria=X` pelado reemplazaba todo el query
+  string y los perdía). Dentro de una misma sección los filtros persisten por el `<form method="get">`
+  con `onchange="this.form.submit()"`. Cubierto por `contenido/tests/test_dashboard_navegacion.py`.
 
 ### Gráficos (Chart.js)
 
@@ -887,9 +895,22 @@ Ponderación | Observaciones**, cabecera de 2 filas, **logo de Planeación** (qu
 - **Pilar/Indicador combinados** por grupo: en Excel con *merge* de celdas; en **PDF sin `rowspan`**
   (fpdf2 no puede partir un rowspan entre páginas → daba error 500): se suprimen los bordes
   horizontales internos de esas dos columnas (`_bordes_jerarquia`) para dar el efecto de celda unida
-  y se rotula en la primera fila del grupo.
+  y se rotula en una sola fila elegida por **estructura** (`_filas_rotulo`), con el medio
+  **sesgado hacia arriba**: el indicador en su subindicador `(n_subs - 1) // 2` y el pilar en el
+  rótulo de su indicador `(n_indicadores - 1) // 2` (par → el superior de los dos centrales),
+  con `v_align="MIDDLE"`, de modo que el rótulo del pilar quede **alineado** con el de su indicador
+  central. En el PDF el texto de la tabla va **centrado** (`text_align="CENTER"`).
+- **Separador entre pilares (PDF):** entre cada par de pilares se dibuja una línea horizontal de
+  ancho 0.2 (como el resto de la grilla) pero en un gris algo más oscuro (`RGB_SEP_PILAR`), porque
+  el gris claro de la grilla queda **invisible** sobre el relleno verde/azulado de las columnas
+  Pilar/Indicador (misma luminancia). Se implementa como borde superior con `TableBorderStyle`
+  propio en las filas que inician pilar (`pil_sep` en `_bordes_jerarquia`).
 - **Meses = área de puntaje**: `mensual` → un valor por mes; **`directo` → celdas de meses
   combinadas** con el puntaje (no hay columna de puntaje consolidado, igual que en la evaluación).
+- **Fila de total al final**: **"PUNTAJE TOTAL DE LA DEPENDENCIA"** (rótulo alineado a la **izquierda**)
+  con el puntaje total = **suma de la ponderación** de todos los subindicadores (`_total_ponderado`),
+  **redondeado a 2 decimales** (half-up), en la columna Ponderación. Resaltada en **verde bajo**
+  (`VERDE_CLARO`/`RGB_PILAR`) y **negrilla**; en el PDF lleva todos los bordes.
 - **Pesos** con **2 decimales**; puntaje/ponderación con el filtro min2/max5.
 - **PDF con tipografía Montserrat** (TTF embebido con `add_font`; *fallback* a Helvetica si no se
   encuentra la fuente) y **pie de página** con la **fecha de generación** (izquierda) y "Página N de

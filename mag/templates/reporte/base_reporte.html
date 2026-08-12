@@ -240,11 +240,13 @@ body.r-body{
 
 <div class="d-tabs-band">
   <div class="r-wrap">
+    {% comment %}Arrastra los filtros actuales (GET) al cambiar de sección; el guard evita
+    dejar un "?" colgando cuando no hay filtros.{% endcomment %}
     <nav class="d-tabs">
-      <a href="{% url 'contenido:reporte_publico' %}" class="{% if vista == 'imag' %}activo{% endif %}">IMAG</a>
-      <a href="{% url 'contenido:reporte_desempeno' %}" class="{% if vista == 'desempeno' %}activo{% endif %}">Desempeño</a>
-      <a href="{% url 'contenido:reporte_ranking' %}" class="{% if vista == 'ranking' %}activo{% endif %}">Ranking</a>
-      <a href="{% url 'contenido:reporte_variaciones' %}" class="{% if vista == 'variaciones' %}activo{% endif %}">Variaciones</a>
+      <a href="{% url 'contenido:reporte_publico' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="{% if vista == 'imag' %}activo{% endif %}">IMAG</a>
+      <a href="{% url 'contenido:reporte_desempeno' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="{% if vista == 'desempeno' %}activo{% endif %}">Desempeño</a>
+      <a href="{% url 'contenido:reporte_ranking' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="{% if vista == 'ranking' %}activo{% endif %}">Ranking</a>
+      <a href="{% url 'contenido:reporte_variaciones' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="{% if vista == 'variaciones' %}activo{% endif %}">Variaciones</a>
     </nav>
   </div>
 </div>

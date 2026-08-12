@@ -201,11 +201,13 @@ toolbar, cuerpo, data, scripts, footer_extra.
     </div>
   </div>
 
+  {% comment %}Arrastra los filtros actuales (GET) al cambiar de sección; el guard evita
+  dejar un "?" colgando cuando no hay filtros.{% endcomment %}
   <nav class="dr-tabs">
-    <a href="{% url 'contenido:dashboard_imag' %}" class="{% if vista == 'imag' %}activo{% endif %}">IMAG</a>
-    <a href="{% url 'contenido:dashboard_desempeno' %}" class="{% if vista == 'desempeno' %}activo{% endif %}">Desempeño</a>
-    <a href="{% url 'contenido:dashboard_ranking' %}" class="{% if vista == 'ranking' %}activo{% endif %}">Ranking</a>
-    <a href="{% url 'contenido:dashboard_variaciones' %}" class="{% if vista == 'variaciones' %}activo{% endif %}">Variaciones</a>
+    <a href="{% url 'contenido:dashboard_imag' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="{% if vista == 'imag' %}activo{% endif %}">IMAG</a>
+    <a href="{% url 'contenido:dashboard_desempeno' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="{% if vista == 'desempeno' %}activo{% endif %}">Desempeño</a>
+    <a href="{% url 'contenido:dashboard_ranking' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="{% if vista == 'ranking' %}activo{% endif %}">Ranking</a>
+    <a href="{% url 'contenido:dashboard_variaciones' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="{% if vista == 'variaciones' %}activo{% endif %}">Variaciones</a>
   </nav>
 
   {% block toolbar %}{% endblock %}
