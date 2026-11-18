@@ -202,7 +202,7 @@ def _excel_hoja(ws, it, logo_png):
     left = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
     # --- Encabezado institucional (filas 1-5) + logo arriba a la derecha ---
-    ws["A1"] = "INFORME · MODELO DE ALTA GERENCIA"
+    ws["A1"] = "INFORME - MODELO DE ALTA GERENCIA"
     ws["A1"].font = Font(size=14, bold=True, color=VERDE_SUP)
     info = [
         ("Categoría", it["categoria"]),
@@ -299,6 +299,24 @@ def _excel_hoja(ws, it, logo_png):
         cell = ws.cell(r, c)
         cell.fill = fill_total
         cell.border = borde
+
+    # --- Observaciones generales de la evaluación (solo si hay texto) ---
+    obs = it.get("observaciones", "")
+    if obs:
+        r += 2
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=n_cols)
+        _head_cell(ws, r, 1, "OBSERVACIONES GENERALES", fill_head,
+                   Alignment(horizontal="left", vertical="center"), borde)
+        r += 1
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=n_cols)
+        co = ws.cell(r, 1, obs)
+        co.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+        co.font = Font(color=GRIS_OSC, size=10)
+        # alto aproximado: ~150 caracteres por línea en el ancho combinado, 15 pt por línea
+        lineas = sum(max(1, -(-len(p) // 150)) for p in obs.split("\n"))
+        ws.row_dimensions[r].height = min(409, 15 * lineas + 6)
+        for c in range(1, n_cols + 1):
+            ws.cell(r, c).border = borde
 
     # --- Anchos de columna ---
     for col, w in (("A", 20), ("B", 22), ("C", 30), ("D", 34)):
@@ -414,7 +432,31 @@ def generar_pdf(items):
         pdf.add_page()
         _pdf_encabezado(pdf, it, logo)
         _pdf_tabla(pdf, it)
+        _pdf_observaciones(pdf, it)
     return bytes(pdf.output())
+
+
+def _pdf_observaciones(pdf, it):
+    """Bloque 'Observaciones generales' bajo la tabla (solo si la evaluación tiene texto).
+    multi_cell parte el texto entre páginas si hace falta."""
+    obs = it.get("observaciones", "")
+    if not obs:
+        return
+    pdf.ln(5)
+    if pdf.get_y() > pdf.h - 40:  # que el título no quede huérfano al pie de la página
+        pdf.add_page()
+    ancho = pdf.w - pdf.l_margin - pdf.r_margin
+    pdf.set_fill_color(*RGB_VERDE_SUP)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font(pdf.familia, "B", 8)
+    pdf.cell(ancho, 6, _t(pdf, "  OBSERVACIONES GENERALES"), fill=True,
+             new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*RGB_GRIS)
+    pdf.set_draw_color(*RGB_GRIS_CLARO)
+    pdf.set_line_width(0.2)
+    pdf.set_font(pdf.familia, "", 8.5)
+    pdf.multi_cell(ancho, 4.6, _t(pdf, obs), border=1, padding=2,
+                   new_x="LMARGIN", new_y="NEXT")
 
 
 def _pdf_encabezado(pdf, it, logo):
@@ -429,7 +471,7 @@ def _pdf_encabezado(pdf, it, logo):
     pdf.set_xy(pdf.l_margin, top)
     pdf.set_font(pdf.familia, "B", 13)
     pdf.set_text_color(*RGB_VERDE_SUP)
-    pdf.cell(0, 7, _t(pdf, "INFORME · MODELO DE ALTA GERENCIA"), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 7, _t(pdf, "INFORME - MODELO DE ALTA GERENCIA"), new_x="LMARGIN", new_y="NEXT")
 
     per = "{}{}".format(it["periodo"], " · {}".format(it["vigencia"]) if it["vigencia"] else "")
     lineas = [

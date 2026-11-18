@@ -184,6 +184,7 @@ class Evaluacion(Fechas):
     modelo_evaluacion = models.ForeignKey(ModeloEvaluacion, on_delete=models.CASCADE)
     categoria         = models.ForeignKey(Categoria, on_delete=models.CASCADE,
                                           null=True, blank=False)   # clasificación congelada
+    observaciones     = models.TextField(blank=True, default="", db_default="")  # generales
 
     class Meta:
         constraints = [
@@ -201,6 +202,14 @@ class Evaluacion(Fechas):
         super().save(*args, **kwargs)
 ```
 
+- `observaciones` (migración 0021, nov-2026): **observaciones generales** de toda la
+  evaluación, p. ej. subindicadores que no aplican en el periodo (sus puntajes quedan vacíos,
+  así que no hay `EvaluacionResultado` donde anotar). No entra en ningún cálculo; sale al final
+  del informe Excel/PDF. `db_default=""` deja el default también en la BD (`ADD COLUMN ...
+  DEFAULT ''`), para que el código anterior siga insertando evaluaciones durante el despliegue.
+  Como varias personas diligencian la misma evaluación, el guardado compara contra el texto
+  que había al cargar la página y no sobrescribe si otra persona lo cambió entretanto
+  (`_guardar_observaciones_generales`).
 - Guarda `dependencia` **y** `modelo_evaluacion` por separado (no un FK al puente). Es
   **desnormalización deliberada** (patrón *snapshot*): la evaluación queda autónoma y el
   histórico no se rompe si luego se reasigna o borra la fila de `DependenciaModelo`.
@@ -902,6 +911,13 @@ El proyecto se despliega en **Railway**, que instala las dependencias con `uv` a
 cd mag && uv run manage.py collectstatic --noinput && gunicorn mag.wsgi:application --bind 0.0.0.0:$PORT
 ```
 
+> **Migraciones:** este comando **no** corre `migrate`. Si un cambio trae migraciones, hay
+> que aplicarlas en Supabase **antes** del push (`python manage.py migrate`, desde `mag/` con
+> el `.env` de producción); si el código nuevo llega antes que la columna, las vistas que la
+> usan fallan. Recomendado: agregar `uv run manage.py migrate --noinput &&` antes de
+> `collectstatic` en el comando de inicio de Railway. Para que el orden no importe, las
+> columnas nuevas llevan `db_default` (ver `Evaluacion.observaciones`, migración 0021).
+
 Tres detalles que **deben** ir así:
 
 - **`mag.wsgi:application`** (dos puntos, no punto). Gunicorn espera `módulo:variable`. El
@@ -1004,6 +1020,7 @@ python manage.py test contenido --settings=mag.settings_test
 | `test_reporte_totales.py` | Fidelidad del informe Excel (ponderaciones y fila de total = BD) y generación Excel/PDF |
 | `test_dashboard_navegacion.py` | Arrastre de filtros (GET) en las pestañas del dashboard interno y del reporte público |
 | `test_imag_estructuras_mixtas.py` | Promedio por pilar en % de cumplimiento con estructuras de pesos distintos (no supera el peso; homogéneo sin cambios; ranking por pilar en la misma escala) |
+| `test_observaciones_generales.py` | Observaciones generales: se guardan sin puntajes, no pisan el aporte de otra persona, aviso de observación de subindicador descartada, permisos/login y salida en el informe Excel/PDF |
 
 > **Nota de fidelidad:** un `<select>` real nunca envía cadena vacía, y `Evaluacion.save()`
 > valida el `UniqueConstraint` vía `full_clean()` (por eso el duplicado lanza

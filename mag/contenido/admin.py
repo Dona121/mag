@@ -308,6 +308,7 @@ class EvaluacionAdmin(ModelAdmin):
             "Identificacion",
             {"fields": ("periodo", "dependencia", "categoria", "modelo_evaluacion")},
         ),
+        ("Observaciones generales", {"fields": ("observaciones",)}),
         (
             "Auditoria",
             {"fields": ("creado_en", "actualizado_en"), "classes": ("collapse",)},

@@ -579,6 +579,17 @@ público, el reporte muestra el aviso correspondiente.
     larga "—" en el interno y doble "·" en el público).
 20. **Sidebar interno:** se quitó el punto naranja junto al nombre del usuario.
 21. **IMAG por categoría con estructuras de pesos distintos** — ver sección 17.2.
+22. **Observaciones generales de la evaluación** (campo `Evaluacion.observaciones`, migración
+    0021). Recuadro debajo de la matriz de diligenciamiento (solo lectura para quien no tiene
+    indicadores asignados) y en el admin. Sirve para casos como "este subindicador no aplica en
+    el periodo": antes, si los meses/puntaje de un subindicador quedaban vacíos, su observación
+    **se perdía sin aviso** (no se crea resultado). Ahora además se avisa: *"No se guardó la
+    observación de «…», porque no tiene puntaje…"*. No interviene en ningún cálculo. En el
+    informe Excel/PDF sale un bloque **OBSERVACIONES GENERALES** bajo el total, solo si hay
+    texto (en el PDF se parte entre páginas si es largo). No sobrescribe el aporte de otra
+    persona: si alguien más lo cambió mientras editabas, no se guarda y se avisa.
+23. **Textos del informe:** título `INFORME - MODELO DE ALTA GERENCIA` (antes con "·") en PDF,
+    Excel y membrete de `/reportes/`; opción `Todas - una hoja por cada una` (antes "—").
 
 ---
 
@@ -998,6 +1009,7 @@ almacenamiento estático sin *manifest* (no exige `collectstatic`).
 | `test_reporte_totales.py` | Fidelidad del informe: ponderaciones y fila de total del Excel = BD; Excel y PDF se generan |
 | `test_dashboard_navegacion.py` | Las pestañas del dashboard interno y del reporte público arrastran los filtros (GET) |
 | `test_imag_estructuras_mixtas.py` | IMAG por categoría con estructuras de pesos distintos: el pilar no supera su peso, se promedian %, categoría homogénea sin cambios y ranking por pilar en la misma escala |
+| `test_observaciones_generales.py` | Observaciones generales: se guardan sin puntajes, no pisan el aporte de otra persona, aviso de observación de subindicador descartada, login/permisos y salida en Excel/PDF |
 
 Detalle técnico (settings de test, notas de fidelidad) en `NOTAS_TECNICAS.md`, Parte VII.
 

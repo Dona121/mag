@@ -271,6 +271,21 @@ table.matriz textarea[readonly] {
     cursor: not-allowed;
 }
 table.matriz tr.fila-solo-lectura .col-sub { opacity: .85; }
+
+/* Observaciones generales de la evaluación (debajo de la matriz) */
+.obs-generales { padding: 14px 16px 4px; border-top: 1px solid var(--gris-claro); }
+.obs-generales label { display: block; margin-bottom: 8px; }
+.obs-generales label strong {
+    display: block; font-size: 12px; font-weight: 800; letter-spacing: .4px;
+    text-transform: uppercase; color: var(--verde-superficie);
+}
+.obs-generales textarea {
+    width: 100%; min-height: 84px; resize: vertical; box-sizing: border-box;
+    font: inherit; font-size: 13px; color: var(--gris-oscuro);
+    border: 1px solid var(--gris-claro); border-radius: var(--radio-base); padding: 9px 11px;
+}
+.obs-generales textarea:focus { outline: none; border-color: var(--verde-primario); box-shadow: var(--sombra-foco); }
+.obs-generales textarea[readonly] { background: var(--gris-fondo); color: var(--gris-medio); cursor: not-allowed; }
 {% endblock %}
 
 {% block contenido %}
@@ -448,6 +463,21 @@ table.matriz tr.fila-solo-lectura .col-sub { opacity: .85; }
                 {% endfor %}
             </tbody>
         </table>
+
+        <section class="obs-generales">
+            <label for="obs-generales">
+                <strong>Observaciones generales de la evaluación</strong>
+            </label>
+            {% if usuario_es_superuser or puede_editar_algo %}
+                <textarea id="obs-generales" name="observaciones_generales">{{ evaluacion.observaciones }}</textarea>
+                {% comment %}Texto al cargar la página: el servidor solo guarda si el usuario lo
+                cambió y nadie más lo modificó entretanto (varias personas comparten la evaluación).{% endcomment %}
+                <textarea name="observaciones_generales_original" hidden aria-hidden="true" tabindex="-1">{{ evaluacion.observaciones }}</textarea>
+            {% else %}
+                <textarea id="obs-generales" readonly tabindex="-1"
+                          placeholder="Sin observaciones generales.">{{ evaluacion.observaciones }}</textarea>
+            {% endif %}
+        </section>
 
         <div class="matriz-totales">
             <div class="totales">

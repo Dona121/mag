@@ -199,6 +199,13 @@ class Evaluacion(Fechas):
         ModeloEvaluacion, on_delete=models.CASCADE, verbose_name="Modelo Evaluación"
     )
     categoria = models.ForeignKey(Categoria,on_delete=models.CASCADE, null=True,blank=False)
+    # Aclaraciones que aplican a toda la evaluación (p. ej. subindicadores que no aplican en
+    # el periodo y por eso quedan vacíos). No interviene en ningún cálculo. `db_default` deja
+    # el valor por defecto también en la BD, así el código anterior puede seguir insertando
+    # evaluaciones mientras se despliega la versión nueva.
+    observaciones = models.TextField(
+        blank=True, default="", db_default="", verbose_name="Observaciones generales"
+    )
 
     class Meta:
         verbose_name = "Evaluacion"

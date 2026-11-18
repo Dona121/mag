@@ -31,6 +31,7 @@ from django.db.models import Count, F, Min, Prefetch, Sum
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.utils.text import slugify
 from django.views.generic import CreateView, ListView, UpdateView
 
@@ -1231,6 +1232,7 @@ def construir_matriz(evaluacion):
         "version": evaluacion.modelo_evaluacion.version,
         "meses": [(m, lbl) for m, lbl in meses],
         "pilares": pilares,
+        "observaciones": (evaluacion.observaciones or "").strip(),
     }
 
 
@@ -1793,6 +1795,36 @@ class EvaluacionCreateView(LoginRequiredMixin, CreateView):
         )
 
 
+def _norm_texto(s):
+    """Normaliza un texto de textarea para comparar (los navegadores envían \\r\\n)."""
+    return (s or "").replace("\r\n", "\n").strip()
+
+
+def _guardar_observaciones_generales(request, evaluacion):
+    """Guarda `Evaluacion.observaciones` desde el POST de diligenciamiento.
+
+    Varias personas diligencian la misma evaluación (cada una sus indicadores) y el campo
+    es uno solo, así que se protege contra sobrescribir el aporte de otra persona: el form
+    envía también el texto que había al cargar la página. Solo se escribe si el usuario lo
+    cambió; si además alguien lo modificó en la BD entretanto, no se escribe y se avisa.
+    Devuelve True si hubo conflicto.
+    """
+    if "observaciones_generales" not in request.POST:
+        return False  # el form no trae el campo (usuario sin permiso de edición)
+    nuevo = _norm_texto(request.POST.get("observaciones_generales"))
+    original = _norm_texto(request.POST.get("observaciones_generales_original"))
+    if nuevo == original:
+        return False  # no lo tocó: no pisa lo que otra persona haya escrito
+    actual = Evaluacion.objects.select_for_update().values_list(
+        "observaciones", flat=True).get(pk=evaluacion.pk)
+    if _norm_texto(actual) != original:
+        return True
+    Evaluacion.objects.filter(pk=evaluacion.pk).update(observaciones=nuevo,
+                                                       actualizado_en=timezone.now())
+    evaluacion.observaciones = nuevo
+    return False
+
+
 @login_required
 def evaluacion_diligenciar(request, pk):
     """
@@ -1866,8 +1898,10 @@ def evaluacion_diligenciar(request, pk):
             )
             return redirect("contenido:evaluacion_diligenciar", pk=evaluacion.pk)
 
+        obs_descartadas = []  # subindicadores con observación pero sin puntaje (no se guardan)
         try:
             with transaction.atomic():
+                obs_conflicto = _guardar_observaciones_generales(request, evaluacion)
                 for pilar in pilares:
                     for indicador in pilar.indicador_set.all():
                         # Saltamos completos los indicadores que el usuario
@@ -1896,6 +1930,8 @@ def evaluacion_diligenciar(request, pk):
                                     EvaluacionResultado.objects.filter(
                                         evaluacion=evaluacion, subindicador=sub,
                                     ).delete()
+                                    if observaciones:
+                                        obs_descartadas.append(str(sub.nombre))
                                     continue
                                 ponderaciones_mes = {
                                     m: (p * peso_sub / Decimal("100"))
@@ -1931,6 +1967,8 @@ def evaluacion_diligenciar(request, pk):
                                     EvaluacionResultado.objects.filter(
                                         evaluacion=evaluacion, subindicador=sub,
                                     ).delete()
+                                    if observaciones:
+                                        obs_descartadas.append(str(sub.nombre))
                                     continue
                                 puntaje = _parse_decimal(
                                     puntaje_raw, "puntaje de «{}»".format(sub), 0, 100
@@ -1945,6 +1983,19 @@ def evaluacion_diligenciar(request, pk):
                                     },
                                 )
             messages.success(request, "Evaluación guardada correctamente.")
+            if obs_conflicto:
+                messages.warning(
+                    request,
+                    "Las observaciones generales no se guardaron: otra persona las modificó "
+                    "mientras editabas. Revisa el texto actual y vuelve a escribir tu aporte.",
+                )
+            if obs_descartadas:
+                messages.warning(
+                    request,
+                    "No se guardó la observación de: {}, porque no tiene puntaje. Para casos "
+                    "que no aplican en el periodo usa las Observaciones generales de la "
+                    "evaluación.".format("; ".join("«{}»".format(n) for n in obs_descartadas)),
+                )
             return redirect("contenido:evaluacion_diligenciar", pk=evaluacion.pk)
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))

@@ -188,7 +188,7 @@
             </div>
             <div class="rep-lista" id="rep-lista" data-total="{{ dependencias|length }}">
                 <div class="rep-todas on" id="rep-todas">
-                    <span class="rep-todas-t">Todas — una hoja por cada una</span>
+                    <span class="rep-todas-t">Todas - una hoja por cada una</span>
                     <span class="rep-todas-s">Estado por defecto cuando no eliges ninguna.</span>
                 </div>
                 {% for d in dependencias %}
@@ -209,7 +209,7 @@
         <div class="rep-mem-bar"></div>
         <div class="rep-mem-body">
             <img class="rep-mem-logo" src="{% static 'logos/2025_logo-gob-Sucre_2.png' %}" alt="Gobernación de Sucre">
-            <p class="rep-mem-t">INFORME · MODELO DE ALTA GERENCIA</p>
+            <p class="rep-mem-t">INFORME - MODELO DE ALTA GERENCIA</p>
             <dl class="rep-mem-info">
                 <div><dt>Categoría</dt><dd>{{ categoria|default:"—" }}</dd></div>
                 <div><dt>Periodo</dt><dd>{% if periodo %}{{ periodo }}{% if periodo.vigencia %} · {{ periodo.vigencia }}{% endif %}{% else %}—{% endif %}</dd></div>
