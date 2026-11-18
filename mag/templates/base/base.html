@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block titulo %}Modelo de Alta Gerencia{% endblock %} — Gobernación de Sucre</title>
+    <title>{% block titulo %}Modelo de Alta Gerencia{% endblock %} - Gobernación de Sucre</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -141,12 +141,6 @@
             border-top: 1px solid rgba(255,255,255,0.10);
             padding: 10px 14px; font-size: 11px; color: rgba(255,255,255,.78);
             display: flex; gap: 8px; align-items: center;
-        }
-        .sidebar .pie-side .dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: var(--naranja);
-            box-shadow: 0 0 0 3px rgba(255,167,0,0.25);
-            flex: none;
         }
         .sidebar .pie-side small { transition: opacity 160ms ease, width 220ms ease; white-space: nowrap; }
 
@@ -440,7 +434,6 @@
             </ul>
 
             <div class="pie-side">
-                <span class="dot"></span>
                 <small>
                     {% if user.is_authenticated %}
                         {{ user.get_full_name|default:user.username }}

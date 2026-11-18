@@ -473,6 +473,11 @@ repiten).
   `|unlocalize` (locale `es-col` mete coma decimal).
 - El **objetivo del Ranking** ya viene de la BD (`Periodo.umbral`, variable por periodo);
   el de **Desempeño sigue constante en 60 %** (parametrizar si debe venir de la BD).
+- **Promedio de un pilar en la categoría = promedio de % de cumplimiento** (no de puntos):
+  cada dependencia se mide contra el peso del pilar en *su* estructura y el promedio se
+  expresa sobre el **peso de referencia** (el más frecuente en la selección). Evita inflar el
+  pilar cuando una estructura lo pondera distinto (Tránsito v2). En categorías homogéneas da
+  idéntico al promedio de puntos. Detalle y ejemplo en la sección 17.2.
 
 ### Visibilidad pública (`Periodo.publico`)
 
@@ -554,6 +559,26 @@ público, el reporte muestra el aviso correspondiente.
 14. **Módulo de Reportes (Excel/PDF).** Nuevo `/reportes/` — ver **sección 15**.
 15. **Reporte público: filtros en sidebar izquierdo.** El panel sticky de filtros del top pasó a
     un **sidebar a la izquierda** (solo en `base_reporte.html`; el dashboard interno no cambia).
+16. **Reporte público: sin footer y con panel lateral como el interno (nov-2026).** Se quitó el
+    footer (nota metodológica + resumen de filtros, ocupaba mucho espacio) y el masthead + banda
+    de pestañas pasó a un **sidebar verde fijo** con la misma línea de `base/base.html`: escudo,
+    sección *Resultados* (IMAG / Desempeño / Ranking / Variaciones, con íconos y arrastre de
+    filtros) y sección *Filtros* (los selectores, adaptados al fondo verde). Colapsable a íconos
+    en escritorio (se recuerda en `localStorage`, clave `reporte-sidebar-colapsado`) y cajón en
+    móvil. Topbar blanca con el botón **Iniciar sesión** arriba a la derecha y cabecera de la
+    vista (título + chips) igual a la del dashboard interno.
+17. **Esquinas más cuadradas** en dashboard interno y público: una sola variable `--radio: 6px`
+    (tarjetas, cajas, filtros, botones, pestañas, chips, filas del ranking); barras de progreso
+    a 3px. Se ajusta en una línea por plantilla (`base_reporte.html`, `dashboard_reporte.html`).
+18. **Texto más nítido en el reporte público:** tintas propias `--tinta` (#232226) y `--tinta-2`
+    (#46454a) en lugar de los grises #5a595d/#686868 (contraste ~9–15:1), peso base 500 y
+    `text-rendering: optimizeLegibility`. Los ejes de los gráficos leen esas tintas vía
+    `repInk('--chart-tick', fallback)`: en el dashboard interno las variables no existen y se
+    usan los colores de siempre.
+19. **Títulos de pestaña con un solo separador:** `Vista - Gobernación de Sucre` (antes raya
+    larga "—" en el interno y doble "·" en el público).
+20. **Sidebar interno:** se quitó el punto naranja junto al nombre del usuario.
+21. **IMAG por categoría con estructuras de pesos distintos** — ver sección 17.2.
 
 ---
 
@@ -612,6 +637,14 @@ python mag/manage.py importar_v1 migracion/archivo.xlsx --commit
 # Agregar un periodo nuevo a los modelos v1 ya existentes (p. ej. trimestre 2026)
 python mag/manage.py importar_periodo_v1 migracion/archivo.xlsx           # simula
 python mag/manage.py importar_periodo_v1 migracion/archivo.xlsx --commit  # escribe
+
+# Ajustes v2 de nov-2026 (ya aplicado en producción; idempotente, ver sección 17)
+python mag/manage.py ajustar_modelos_v2            # simula (ejecuta y revierte)
+python mag/manage.py ajustar_modelos_v2 --commit   # escribe
+
+# Copia de seguridad de la BD a JSON (sin pg_dump) — restaurable con loaddata
+python mag/manage.py dumpdata --natural-foreign --natural-primary -e contenttypes \
+    -e auth.Permission -e sessions --indent 1 -o backups/mag_supabase_AAAA-MM-DD_HHMM.json
 ```
 
 > **Migración del histórico v1:** una hoja por dependencia (+ hoja `categorias` que mapea
@@ -962,5 +995,64 @@ almacenamiento estático sin *manifest* (no exige `collectstatic`).
 | `test_periodos.py` | Activar/desactivar, publicar/despublicar, umbral/vigencia (solo por POST) |
 | `test_acceso.py` | Login requerido, restricciones del rol Evaluador, reporte público anónimo y generación Excel/PDF |
 | `test_modelos_orm.py` | Borrado + cascada y restricciones de integridad (unique, `clean()`) a nivel ORM |
+| `test_reporte_totales.py` | Fidelidad del informe: ponderaciones y fila de total del Excel = BD; Excel y PDF se generan |
+| `test_dashboard_navegacion.py` | Las pestañas del dashboard interno y del reporte público arrastran los filtros (GET) |
+| `test_imag_estructuras_mixtas.py` | IMAG por categoría con estructuras de pesos distintos: el pilar no supera su peso, se promedian %, categoría homogénea sin cambios y ranking por pilar en la misma escala |
 
 Detalle técnico (settings de test, notas de fidelidad) en `NOTAS_TECNICAS.md`, Parte VII.
+
+---
+
+## 17. Ajustes a la versión 2 (noviembre 2026)
+
+### 17.1. Cambios de estructura (comando `ajustar_modelos_v2`)
+
+Aplicado en producción el **2026-11-18 10:27** (copia previa: `backups/mag_supabase_2026-11-18_1023.json`).
+El comando simula por defecto (ejecuta todo en una transacción y la revierte), verifica al final
+que cada ponderación = puntaje × peso / 100 y que los pesos sumen 100, y es idempotente.
+
+**Bellas Artes y Oficina TIC → estructura propia.** El indicador *Estratégicos* no aplica para ellas.
+- Nueva estructura **[21] "MAG v2 - (Bellas Artes y Oficina TIC)"** (version=2): copia de la
+  compartida **sin Estratégicos**; su peso (13,33) se sumó a **POAI** (16,67 → 30), repartido en
+  la misma proporción 80/20 entre sus subindicadores (13,336 → **24**; 3,334 → **6**).
+- Sus 4 evaluaciones (Abril-Junio y Julio-Septiembre) se migraron con sus 32 resultados
+  (observaciones y detalle mensual incluidos) y se recalculó la ponderación de POAI:
+  Bellas Artes 17,45 → 23,67 y 21,98 → 31,79; Oficina TIC 38,14 → 51,47 y 31,10 → 44,43.
+- `DependenciaModelo` de ambas apunta a [21]; los evaluadores con indicadores de la estructura
+  compartida recibieron también los equivalentes en [21].
+- La estructura compartida [4] se renombró a "MAG v2 - (Salud, Inclusión, Unidad del Riesgo,
+  Oficina de Turismo y Oficina de Innovación)"; su árbol no cambió.
+
+**Tránsito v2 sin "Gerencia de los Proyectos".** Se eliminó el pilar (y en cascada su indicador
+POAI, 2 subindicadores, criterios y 4 resultados — se perdieron 6 puntos por periodo del
+subindicador "proyectos suspendidos"). Su peso efectivo (30, suma de sus subindicadores) se
+repartió por partes iguales: pilares **40 / 30 / 30**, escalando de forma proporcional dentro de
+cada pilar (Reportes 7,50417 / 32,49583; Convocatorias 18 / 12; Metas 30). Totales:
+15,63 → 13,50 (Abril-Junio) y 8,82 → 3,75 (Julio-Septiembre).
+
+> Pendiente conocido (no tocado): la estructura [3] (Educación, Desarrollo Económico, …) suma
+> **99,6** en pesos de subindicadores.
+
+### 17.2. IMAG por categoría con estructuras de pesos distintos
+
+Tras el ajuste, la Categoría 3 mezcla estructuras que ponderan distinto el mismo pilar
+(Tránsito: Reportes 40 / Mecanismos 30 / Metas 30; resto: 30 / 30 / 20 / 20). Antes
+`_promedios_por_pilar` promediaba **puntos** y tomaba el peso del **primer registro**: mezclaba
+escalas y el pilar podía pasar del 100 %.
+
+Ahora (`_peso_referencia` + `_a_escala` en `views.py`):
+1. Cada dependencia se mide en **% de cumplimiento** del pilar contra el peso de su estructura.
+2. Se promedian los % entre las dependencias que tienen el pilar.
+3. El promedio se expresa sobre el **peso de referencia** (el más frecuente en la selección).
+4. IMAG de la categoría = suma de los pilares (máximo = suma de pesos de referencia).
+
+Ejemplo (Categoría 3, Abril-Junio, Reportes de Información): antes
+(3,00 + 10,24 + 9,05 + 9,05 + **7,50** + 4,29) ÷ 6 = 7,19 de 30; ahora Tránsito cuenta como
+7,50 ÷ 40 = 18,8 % → promedio de % = 22,9 % → **6,88 de 30**. IMAG de la categoría
+38,75 → **38,11** (Julio-Septiembre 26,22 → 26,07; "Todas" 47,71 → 47,47 y 30,58 → 30,52).
+
+Lo mismo aplica al **ranking/variaciones filtrados por pilar** (`_puntajes_por_dependencia`).
+**No cambian**: el IMAG propio de cada dependencia (sobre 100), el ranking general, los
+informes Excel/PDF ni las categorías homogéneas (toda la v1 y Categorías 1 y 2 de la v2 dan
+idéntico al decimal). Se descartó promediar los totales de las dependencias porque contaría
+como 0 los pilares no evaluados en el periodo (cambia, p. ej., Categoría 2 Julio-Septiembre).

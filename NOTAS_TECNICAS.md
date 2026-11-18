@@ -1001,6 +1001,9 @@ python manage.py test contenido --settings=mag.settings_test
 | `test_periodos.py` | Activar/desactivar, publicar/despublicar y umbral/vigencia (solo por POST) |
 | `test_acceso.py` | Login requerido, restricciones del rol Evaluador (middleware deny-by-default), reporte público anónimo y generación de Excel/PDF |
 | `test_modelos_orm.py` | Borrado + cascada y restricciones de integridad (unique constraints, `clean()`) directamente sobre el ORM — el *Delete* que la capa web no expone |
+| `test_reporte_totales.py` | Fidelidad del informe Excel (ponderaciones y fila de total = BD) y generación Excel/PDF |
+| `test_dashboard_navegacion.py` | Arrastre de filtros (GET) en las pestañas del dashboard interno y del reporte público |
+| `test_imag_estructuras_mixtas.py` | Promedio por pilar en % de cumplimiento con estructuras de pesos distintos (no supera el peso; homogéneo sin cambios; ranking por pilar en la misma escala) |
 
 > **Nota de fidelidad:** un `<select>` real nunca envía cadena vacía, y `Evaluacion.save()`
 > valida el `UniqueConstraint` vía `full_clean()` (por eso el duplicado lanza

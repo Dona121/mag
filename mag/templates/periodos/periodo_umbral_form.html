@@ -1,6 +1,6 @@
 {% extends "base/base.html" %}
 {% load l10n %}
-{% block titulo %}Periodo · {{ periodo.nombre }}{% endblock %}
+{% block titulo %}Periodo {{ periodo.nombre }}{% endblock %}
 {% block breadcrumb %}<a href="{% url 'contenido:periodo_list' %}">Periodos</a> · {{ periodo.nombre }}{% endblock %}
 
 {% block contenido %}

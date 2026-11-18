@@ -142,7 +142,7 @@ Para un evaluador del equipo: agréguelo al grupo **Evaluador** y asígnele sus 
 - **Pivote del dashboard/reporte = `Categoria`** (clasificación de la dependencia, **congelada en `Evaluacion.categoria`** al crearla); incluye la opción **"Todas las categorías"** (IMAG general). Las 4 vistas se filtran además por **versión del modelo** y por **vigencia (año)**.
 - **Filtro de versión = por número de versión** (1, 2, …), no por estructura: una versión puede tener **varias estructuras** (varios `ModeloEvaluacion` para distintos grupos de dependencias), y al elegir una versión entran **todas** sus estructuras. Por eso los pilares se agregan por **nombre** (si no, se duplicarían).
 - **Precisión decimal:** `peso`, `puntaje` y `ponderacion` son `DecimalField(max_digits=10, decimal_places=5)`.
-- **Ponderación:** `EvaluacionResultado.ponderacion = puntaje × peso_subindicador / 100`; agrega subindicador → (suma) dependencia → (promedio) pilar → (suma) IMAG. Hoy solo pesa el subindicador (los pesos de Indicador/Pilar no cascadean: decisión de negocio pendiente).
+- **Ponderación:** `EvaluacionResultado.ponderacion = puntaje × peso_subindicador / 100`; agrega subindicador → (suma) dependencia → (promedio de % de cumplimiento, expresado sobre el peso de referencia del pilar) pilar → (suma) IMAG. Así una estructura que pondera distinto un pilar (p. ej. Tránsito v2) no infla la categoría; ver `DOCUMENTACION.md` §17.2. Hoy solo pesa el subindicador (los pesos de Indicador/Pilar no cascadean: decisión de negocio pendiente).
 
 ---
 

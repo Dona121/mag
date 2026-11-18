@@ -7,11 +7,6 @@
   {% if periodo_actual %}<span class="d-chip">Periodo <strong>{{ periodo_actual }}</strong></span>{% endif %}
 {% endblock %}
 
-{% block footer_extra %}
-  {% if sel_dependencia %}<div><span class="k">Dependencia</span> · {{ sel_dependencia }}</div>{% endif %}
-  {% if sel_pilar %}<div><span class="k">Indicador</span> · {{ sel_pilar }}</div>{% endif %}
-{% endblock %}
-
 {% block toolbar %}
 {% if categorias %}
 <div class="d-toolbar">
@@ -110,7 +105,7 @@
           {% endfor %}
         </div>
         {% else %}
-        <p style="color:var(--gris-medio); margin:6px 0;">Sin pilares con datos para esta selección.</p>
+        <p style="color:var(--tinta-2, var(--gris-medio)); margin:6px 0;">Sin pilares con datos para esta selección.</p>
         {% endif %}
       </div>
     </section>
@@ -141,8 +136,8 @@ window.reporteCharts = function(){
       options:{responsive:true, maintainAspectRatio:false,
         plugins:{legend:{display:false}, tooltip:{backgroundColor:'#0e4d2a', padding:8,
           callbacks:{label:function(c){ return c.parsed.y.toFixed(2)+'%'; }}}},
-        scales:{y:{beginAtZero:true, grid:{color:'rgba(14,77,42,.06)'}, ticks:{color:'#9aa', font:{size:10}, callback:function(v){ return v+'%'; }}},
-          x:{grid:{display:false}, ticks:{color:'#9aa', font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:5}}}}
+        scales:{y:{beginAtZero:true, grid:{color:'rgba(14,77,42,.06)'}, ticks:{color:repInk('--chart-tick','#9aa'), font:{size:10}, callback:function(v){ return v+'%'; }}},
+          x:{grid:{display:false}, ticks:{color:repInk('--chart-tick','#9aa'), font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:5}}}}
     });
   });
 };

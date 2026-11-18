@@ -7,8 +7,6 @@
   {% if not vacio %}<span class="d-chip"><strong>{{ filas|length }}</strong> dependencias</span>{% endif %}
 {% endblock %}
 
-{% block footer_extra %}{% if sel_pilar %}<div><span class="k">Indicador</span> · {{ sel_pilar }}</div>{% endif %}{% endblock %}
-
 {% block toolbar %}
 {% if categorias %}
 <div class="d-toolbar">
@@ -87,7 +85,7 @@
             <tbody>
               {% for x in filas %}
               <tr>
-                <td style="color:var(--gris-medio); font-weight:700;">{{ x.pos }}</td>
+                <td style="color:var(--tinta-2, var(--gris-medio)); font-weight:700;">{{ x.pos }}</td>
                 <td class="dep">{{ x.dependencia }}</td>
                 <td><span class="d-cell" style="background:rgba(11,114,171,{{ x.a|unlocalize }})">{{ x.total|floatformat:2 }}%</span></td>
               </tr>
@@ -133,8 +131,8 @@ window.reporteCharts = function(){
     options:{responsive:true, maintainAspectRatio:false,
       plugins:{legend:{display:false}, tooltip:{backgroundColor:'#0e4d2a', padding:10,
         callbacks:{label:function(c){ return c.parsed.y.toFixed(2)+'%'; }}}},
-      scales:{y:{beginAtZero:true, max:100, grid:{color:'rgba(14,77,42,.07)'}, ticks:{color:'#686868', callback:function(v){ return v+'%'; }}},
-        x:{grid:{display:false}, ticks:{color:'#5a595d', font:{family:'Montserrat', size:11}, maxRotation:35, minRotation:0, autoSkip:false}}}}
+      scales:{y:{beginAtZero:true, max:100, grid:{color:'rgba(14,77,42,.07)'}, ticks:{color:repInk('--chart-tick','#686868'), callback:function(v){ return v+'%'; }}},
+        x:{grid:{display:false}, ticks:{color:repInk('--chart-label','#5a595d'), font:{family:'Montserrat', size:11}, maxRotation:35, minRotation:0, autoSkip:false}}}}
   });
 };
 </script>

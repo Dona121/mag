@@ -5,7 +5,7 @@ Base del DASHBOARD INTERNO. Reutiliza las mismas plantillas de vista del reporte
 publico (reporte/reporte_*.html), pero las renderiza DENTRO del shell de la app
 (sidebar/topbar) y sin la restriccion de periodo publico. El reporte publico usa
 reporte/base_reporte.html; ambas exponen los mismos bloques: titulo, topmeta,
-toolbar, cuerpo, data, scripts, footer_extra.
+toolbar, cuerpo, data, scripts.
 {% endcomment %}
 {% block breadcrumb %}Dashboard{% endblock %}
 
@@ -17,6 +17,7 @@ toolbar, cuerpo, data, scripts, footer_extra.
     --card:#ffffff; --papel:#f5f6f7; --linea:#dfe0e1;
     --sombra:0 1px 2px rgba(0,0,0,.05), 0 14px 34px -22px rgba(14,77,42,.45);
     --ds:cubic-bezier(.22,.61,.36,1);
+  --radio:6px;   /* esquinas de tarjetas, cajas, botones y chips */
   }
   .r-body h1,.r-body h2,.r-body h3{font-family:'Montserrat',sans-serif; font-weight:800; line-height:1.1; letter-spacing:-.2px; margin:0; color:var(--gris-oscuro);}
   .r-num{font-variant-numeric:lining-nums tabular-nums; font-feature-settings:"tnum" 1;}
@@ -31,15 +32,15 @@ toolbar, cuerpo, data, scripts, footer_extra.
   .d-f select{
     appearance:none; -webkit-appearance:none; font:inherit; font-size:13.5px; font-weight:500; color:var(--gris-oscuro);
     background:var(--card) url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23686868' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E") no-repeat right 12px center;
-    border:1px solid var(--linea); border-radius:8px; padding:9px 32px 9px 12px; min-width:150px; cursor:pointer;
+    border:1px solid var(--linea); border-radius:var(--radio); padding:9px 32px 9px 12px; min-width:150px; cursor:pointer;
     transition:border-color .2s, box-shadow .2s;
   }
   .d-f select:hover{border-color:var(--verde);}
   .d-f select:focus-visible{outline:none; border-color:var(--verde); box-shadow:0 0 0 3px rgba(16,157,57,.2);}
   .d-f select:disabled{opacity:.5; cursor:not-allowed;}
-  .d-clear{margin-left:auto; align-self:center; font-size:12.5px; font-weight:600; color:var(--gris-medio); text-decoration:none; border:1px solid var(--linea); border-radius:999px; padding:8px 15px; transition:.2s;}
+  .d-clear{margin-left:auto; align-self:center; font-size:12.5px; font-weight:600; color:var(--gris-medio); text-decoration:none; border:1px solid var(--linea); border-radius:var(--radio); padding:8px 15px; transition:.2s;}
   .d-clear:hover{color:var(--surface); border-color:var(--verde);}
-  .d-btn{font:inherit; font-weight:700; font-size:13px; background:var(--verde); color:#fff; border:0; border-radius:8px; padding:10px 16px; cursor:pointer;}
+  .d-btn{font:inherit; font-weight:700; font-size:13px; background:var(--verde); color:#fff; border:0; border-radius:var(--radio); padding:10px 16px; cursor:pointer;}
 
   /* ------------------------------------------------------------- LAYOUT */
   .d-main{padding:4px 0 8px;}
@@ -50,7 +51,7 @@ toolbar, cuerpo, data, scripts, footer_extra.
 
   /* -------------------------------------------------------------- CARDS */
   .d-card{
-    background:var(--card); border:1px solid var(--linea); border-radius:14px;
+    background:var(--card); border:1px solid var(--linea); border-radius:var(--radio);
     padding:20px 20px; box-shadow:var(--sombra); position:relative; overflow:hidden;
     opacity:0; transform:translateY(14px); transition:opacity .55s var(--ds), transform .55s var(--ds);
   }
@@ -67,7 +68,7 @@ toolbar, cuerpo, data, scripts, footer_extra.
   .r-gauge-read{position:absolute; left:0; right:0; bottom:2%; text-align:center;}
   .r-gauge-read .v{font-size:clamp(2.6rem,9vw,3.6rem); font-weight:900; color:var(--surface); display:block; line-height:.9;}
   .r-gauge-read .m{font-size:12px; font-weight:600; color:var(--gris-medio);}
-  .d-pill{display:inline-block; margin-top:14px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:6px 14px; border-radius:999px;}
+  .d-pill{display:inline-block; margin-top:14px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:6px 14px; border-radius:var(--radio);}
   .d-pill.verde{background:var(--verde-claro); color:var(--surface);}
   .d-pill.ambar{background:#fff3d6; color:#8a6500;}
   .d-pill.rojo{background:#fdecee; color:#a8262f;}
@@ -91,8 +92,8 @@ toolbar, cuerpo, data, scripts, footer_extra.
   .r-pilar-name{font-weight:700; font-size:.92rem; color:var(--gris-oscuro);}
   .r-pilar-val{font-size:.86rem; font-weight:600; color:var(--gris-medio); white-space:nowrap;}
   .r-pilar-val b{color:var(--surface); font-weight:800;}
-  .r-track{height:12px; background:#eef1f4; border-radius:999px; overflow:hidden; box-shadow:inset 0 0 0 1px var(--linea);}
-  .r-fill{display:block; height:100%; width:0; border-radius:999px; transition:width 1.05s var(--ds);}
+  .r-track{height:12px; background:#eef1f4; border-radius:3px; overflow:hidden; box-shadow:inset 0 0 0 1px var(--linea);}
+  .r-fill{display:block; height:100%; width:0; border-radius:3px; transition:width 1.05s var(--ds);}
   .is-in .r-fill{width:var(--target);}
   .r-fill.verde{background:linear-gradient(90deg,#109d39,#1ec153);}
   .r-fill.ambar{background:linear-gradient(90deg,#e89500,#ffb52e);}
@@ -101,13 +102,13 @@ toolbar, cuerpo, data, scripts, footer_extra.
   /* Ranking */
   .r-rank{display:flex; flex-direction:column; gap:3px; max-height:430px; overflow:auto; padding-right:6px; margin:-4px -4px 0;}
   .r-rank::-webkit-scrollbar{width:6px;} .r-rank::-webkit-scrollbar-thumb{background:var(--gris-claro); border-radius:6px;}
-  .r-row{display:grid; grid-template-columns:30px 1fr auto; align-items:center; gap:12px; padding:8px 12px; border-radius:9px; transition:background .3s;}
+  .r-row{display:grid; grid-template-columns:30px 1fr auto; align-items:center; gap:12px; padding:8px 12px; border-radius:var(--radio); transition:background .3s;}
   .r-row:hover{background:var(--papel);}
   .r-row .pos{font-size:.82rem; font-weight:700; color:var(--gris-medio); text-align:right;}
   .r-row .nm{font-size:.86rem; font-weight:500; line-height:1.25; color:var(--gris-oscuro); overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
   .r-row .tot{font-size:.84rem; font-weight:600; color:var(--gris-medio);} .r-row .tot b{color:var(--surface); font-weight:800;}
-  .r-row .barwrap{grid-column:2 / 4; height:6px; background:#eef1f4; border-radius:6px; overflow:hidden; margin-top:5px;}
-  .r-row .bar{display:block; height:100%; width:0; background:var(--verde); border-radius:6px; transition:width 1s var(--ds);}
+  .r-row .barwrap{grid-column:2 / 4; height:6px; background:#eef1f4; border-radius:3px; overflow:hidden; margin-top:5px;}
+  .r-row .bar{display:block; height:100%; width:0; background:var(--verde); border-radius:3px; transition:width 1s var(--ds);}
   .is-in .r-row .bar{width:var(--target);}
   .r-row--best{background:var(--verde-claro);} .r-row--best .pos{color:var(--verde);} .r-row--best .bar{background:var(--verde);}
   .r-row--worst{background:#fdecee;} .r-row--worst .pos{color:var(--rojo);} .r-row--worst .bar{background:var(--rojo);}
@@ -122,7 +123,7 @@ toolbar, cuerpo, data, scripts, footer_extra.
 
   /* ------------------------------------------------ TABLAS / NARRATIVA (PBI) */
   .d-kpis3{display:grid; grid-template-columns:repeat(3,1fr); gap:18px;}
-  .d-narr{background:var(--card); border:1px solid var(--linea); border-left:4px solid var(--verde); border-radius:10px; padding:14px 18px; margin-bottom:18px; font-size:.96rem; color:var(--gris-oscuro);}
+  .d-narr{background:var(--card); border:1px solid var(--linea); border-left:4px solid var(--verde); border-radius:var(--radio); padding:14px 18px; margin-bottom:18px; font-size:.96rem; color:var(--gris-oscuro);}
   .d-narr b{color:var(--surface); font-weight:800;}
   .d-table-wrap{max-height:520px; overflow:auto;}
   .d-table-wrap::-webkit-scrollbar{width:7px; height:7px;} .d-table-wrap::-webkit-scrollbar-thumb{background:var(--gris-claro); border-radius:6px;}
@@ -132,14 +133,14 @@ toolbar, cuerpo, data, scripts, footer_extra.
   .d-table tbody td{padding:7px 10px; border-bottom:1px solid var(--linea); color:var(--gris-oscuro); vertical-align:middle;}
   .d-table tbody tr:last-child td{border-bottom:none;}
   .d-table .dep{font-weight:600; color:var(--gris-oscuro);}
-  .d-cell{display:block; text-align:right; padding:5px 9px; border-radius:6px; font-variant-numeric:tabular-nums; font-weight:600;}
+  .d-cell{display:block; text-align:right; padding:5px 9px; border-radius:var(--radio); font-variant-numeric:tabular-nums; font-weight:600;}
   .d-namecard .val{font-size:1.35rem; line-height:1.12; font-weight:800;}
   .d-namecard .val.pos{color:var(--verde);} .d-namecard .val.neg{color:var(--rojo);}
   .d-chartbar{position:relative; height:520px;}
 
   /* Small-multiples (Desempeño) */
   .d-mini-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
-  .d-mini{background:var(--papel); border:1px solid var(--linea); border-radius:12px; padding:12px 12px 6px;}
+  .d-mini{background:var(--papel); border:1px solid var(--linea); border-radius:var(--radio); padding:12px 12px 6px;}
   .d-mini h4{margin:0 0 6px; font-size:.8rem; font-weight:700; color:var(--gris-oscuro);}
   .d-mini .mh{position:relative; height:148px;}
   .d-objbadge{display:block; margin-top:8px; font-size:.78rem; color:var(--gris-medio);}
@@ -149,7 +150,7 @@ toolbar, cuerpo, data, scripts, footer_extra.
   /* Tabs de Categoría (clasificación de dependencia) en Ranking */
   .d-cat{background:var(--card); border-bottom:1px solid var(--linea);}
   .d-cat-tabs{display:flex; gap:6px; flex-wrap:wrap; padding:0 0 0;}
-  .d-cat-tabs a{padding:9px 18px; border-radius:9px 9px 0 0; font-weight:700; font-size:13px; text-decoration:none; color:var(--gris-medio); border:1px solid var(--linea); border-bottom:none; background:var(--papel); transition:.2s;}
+  .d-cat-tabs a{padding:9px 18px; border-radius:var(--radio) var(--radio) 0 0; font-weight:700; font-size:13px; text-decoration:none; color:var(--gris-medio); border:1px solid var(--linea); border-bottom:none; background:var(--papel); transition:.2s;}
   .d-cat-tabs a:hover{color:var(--surface);}
   .d-cat-tabs a.activo{background:var(--verde); color:#fff; border-color:var(--verde);}
   .d-rank-cols{display:grid; grid-template-columns:1.55fr 1fr; gap:18px;}
@@ -161,10 +162,10 @@ toolbar, cuerpo, data, scripts, footer_extra.
   .dr-head h1{font-size:22px; font-weight:800; color:var(--gris-oscuro); margin:2px 0 0; letter-spacing:-.2px;}
   .dr-head .r-eyebrow{color:var(--verde);}
   .dr-meta{display:flex; gap:9px; flex-wrap:wrap; align-items:center;}
-  .d-chip{font-size:12.5px; font-weight:600; color:var(--gris-medio); border:1px solid var(--linea); border-radius:999px; padding:6px 13px;}
+  .d-chip{font-size:12.5px; font-weight:600; color:var(--gris-medio); border:1px solid var(--linea); border-radius:var(--radio); padding:6px 13px;}
   .d-chip strong{color:var(--surface); font-weight:800;}
-  .dr-flag{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--surface); background:var(--verde-claro); border-radius:999px; padding:6px 13px;}
-  .dr-btn-pub{display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; text-decoration:none; color:#fff; background:var(--azul); border-radius:999px; padding:7px 14px; transition:filter .15s ease;}
+  .dr-flag{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--surface); background:var(--verde-claro); border-radius:var(--radio); padding:6px 13px;}
+  .dr-btn-pub{display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; text-decoration:none; color:#fff; background:var(--azul); border-radius:var(--radio); padding:7px 14px; transition:filter .15s ease;}
   .dr-btn-pub:hover{filter:brightness(1.07);}
   .dr-btn-pub svg{flex:none;}
   .dr-tabs{display:flex; gap:4px; border-bottom:2px solid var(--gris-claro); margin-bottom:18px; flex-wrap:wrap;}
@@ -220,6 +221,8 @@ toolbar, cuerpo, data, scripts, footer_extra.
 {% block scripts_extra %}
 {% block data %}{% endblock %}
 <script src="{% static 'vendor/chart.umd.min.js' %}"></script>
+<script>/* color de texto de los gráficos: lee la variable CSS si existe (reporte público), si no usa el color por defecto (dashboard interno) */
+window.repInk=function(v,d){var x=getComputedStyle(document.documentElement).getPropertyValue(v).trim();return x||d;};</script>
 {% block scripts %}{% endblock %}
 <script>
 (function(){

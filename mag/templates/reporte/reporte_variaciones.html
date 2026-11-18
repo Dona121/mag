@@ -7,8 +7,6 @@
   {% if periodo_anterior %}<span class="d-chip">vs <strong>{{ periodo_anterior }}</strong></span>{% endif %}
 {% endblock %}
 
-{% block footer_extra %}{% if sel_pilar %}<div><span class="k">Indicador</span> · {{ sel_pilar }}</div>{% endif %}{% endblock %}
-
 {% block toolbar %}
 {% if categorias %}
 <div class="d-toolbar">
@@ -146,8 +144,8 @@ window.reporteCharts = function(){
       plugins:{legend:{display:false},
         tooltip:{backgroundColor:'#0e4d2a', padding:10,
           callbacks:{label:function(c){ return (c.parsed.x>=0?'+':'')+c.parsed.x.toFixed(2)+'%'; }}}},
-      scales:{x:{grid:{color:'rgba(14,77,42,.07)'}, ticks:{color:'#686868', callback:function(v){ return v+'%'; }}},
-        y:{grid:{display:false}, ticks:{color:'#5a595d', font:{family:'Montserrat', size:11}}}}}
+      scales:{x:{grid:{color:'rgba(14,77,42,.07)'}, ticks:{color:repInk('--chart-tick','#686868'), callback:function(v){ return v+'%'; }}},
+        y:{grid:{display:false}, ticks:{color:repInk('--chart-label','#5a595d'), font:{family:'Montserrat', size:11}}}}}
   });
 };
 </script>

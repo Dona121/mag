@@ -18,6 +18,7 @@ Logica de ponderacion:
       parent.ponderacion               = promedio(detalle.ponderacion)
   Todos los valores se cuantizan a 2 decimales antes de persistir.
 """
+from collections import Counter
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from unicodedata import normalize
 
@@ -199,12 +200,39 @@ def _eval_kwargs(categoria, modelo):
     return kw
 
 
+def _peso_referencia(pesos):
+    """Peso "estándar" de un pilar dentro de la selección: el más frecuente entre las
+    dependencias (empate -> el mayor).
+
+    Las estructuras de una misma categoría pueden ponderar distinto el mismo pilar (p. ej.
+    Tránsito v2 no tiene "Gerencia de los Proyectos" y repartió ese peso: allí "Reportes de
+    Información" pesa 40 y en las demás 30). Para promediar o comparar entre dependencias
+    se usa este peso como escala común.
+    """
+    conteo = Counter(p for p in pesos if p)
+    if not conteo:
+        return Decimal("0")
+    return max(conteo.items(), key=lambda kv: (kv[1], kv[0]))[0]
+
+
+def _a_escala(total, peso_propio, peso_ref):
+    """Re-expresa el puntaje de un pilar al peso de referencia conservando el % de
+    cumplimiento (total / peso_propio). Si los pesos coinciden (o el propio es 0/None)
+    devuelve el total tal cual, así las categorías homogéneas no cambian ni un decimal."""
+    if not peso_propio or not peso_ref or peso_propio == peso_ref:
+        return total
+    return total / peso_propio * peso_ref
+
+
 def _puntajes_por_dependencia(categoria, modelo, periodo, pilar=None):
     """{dep_id: (nombre, total_ponderacion)} para una categoria/modelo y periodo.
 
     Si `pilar` se indica, solo suma los subindicadores de ese pilar (ranking por pilar).
     El filtro de pilar es por NOMBRE (PilarCategoria): una versión puede abarcar varias
-    estructuras que comparten el mismo pilar por nombre.
+    estructuras que comparten el mismo pilar por nombre. En ese caso el puntaje de cada
+    dependencia se lleva al peso de referencia del pilar (`_a_escala`), para que una
+    estructura que pondera más ese pilar no quede inflada frente a las demás. Sin filtro
+    de pilar el total es el IMAG propio de cada dependencia (todas sobre 100).
     """
     if periodo is None or categoria is None:
         return {}
@@ -213,6 +241,22 @@ def _puntajes_por_dependencia(categoria, modelo, periodo, pilar=None):
     )
     if pilar is not None:
         qs = qs.filter(subindicador__indicador__pilar__nombre=pilar.nombre_id)
+        filas = list(
+            qs.values("evaluacion__dependencia", "evaluacion__dependencia__nombre",
+                      "subindicador__indicador__pilar__peso")
+            .annotate(total=Sum("ponderacion"))
+        )
+        ref = _peso_referencia(f["subindicador__indicador__pilar__peso"] for f in filas)
+        out = {}
+        for f in filas:
+            dep = f["evaluacion__dependencia"]
+            previo = out.get(dep, (None, Decimal("0")))[1]
+            out[dep] = (
+                f["evaluacion__dependencia__nombre"],
+                previo + _a_escala(f["total"] or Decimal("0"),
+                                   f["subindicador__indicador__pilar__peso"], ref),
+            )
+        return out
     filas = (
         qs.values("evaluacion__dependencia", "evaluacion__dependencia__nombre")
         .annotate(total=Sum("ponderacion"))
@@ -230,8 +274,14 @@ def _promedios_por_pilar(categoria, modelo, periodo, pilar=None):
 
     Se agrupa por NOMBRE de pilar (PilarCategoria), no por el Pilar concreto: una versión
     puede abarcar varias estructuras (varios ModeloEvaluacion) que comparten el mismo pilar
-    por nombre; agrupar por PK los duplicaría en el IMAG. Los pilares con el mismo nombre
-    comparten orden/peso (validado en la migración), así que se toman del primer registro.
+    por nombre; agrupar por PK los duplicaría en el IMAG.
+
+    Si esas estructuras ponderan distinto el mismo pilar (p. ej. Tránsito v2: "Reportes de
+    Información" pesa 40 y en el resto de la categoría 30), promediar puntos mezclaría
+    escalas e inflaría el pilar (podría pasar del 100 %). Por eso cada dependencia se lleva
+    al peso de referencia (`_peso_referencia`, el más frecuente) conservando su % de
+    cumplimiento, y ese es el `peso` que se devuelve. Si todas comparten el peso, el
+    resultado es idéntico al promedio simple de puntos.
     """
     if periodo is None or categoria is None:
         return {}
@@ -256,18 +306,19 @@ def _promedios_por_pilar(categoria, modelo, periodo, pilar=None):
         d = acum.setdefault(pid, {
             "nombre": f["subindicador__indicador__pilar__nombre__nombre"],
             "orden": f["subindicador__indicador__pilar__orden"],
-            "peso": f["subindicador__indicador__pilar__peso"] or Decimal("0"),
-            "suma": Decimal("0"), "n": 0,
+            "filas": [],  # (total, peso del pilar en la estructura de esa dependencia)
         })
-        d["suma"] += f["total"] or Decimal("0")
-        d["n"] += 1
-    return {
-        pid: {
-            "nombre": d["nombre"], "orden": d["orden"], "peso": d["peso"],
-            "promedio": (d["suma"] / d["n"]) if d["n"] else Decimal("0"),
+        d["filas"].append((f["total"] or Decimal("0"),
+                           f["subindicador__indicador__pilar__peso"] or Decimal("0")))
+    out = {}
+    for pid, d in acum.items():
+        ref = _peso_referencia(peso for _t, peso in d["filas"])
+        valores = [_a_escala(t, peso, ref) for t, peso in d["filas"]]
+        out[pid] = {
+            "nombre": d["nombre"], "orden": d["orden"], "peso": ref,
+            "promedio": (sum(valores, Decimal("0")) / len(valores)) if valores else Decimal("0"),
         }
-        for pid, d in acum.items()
-    }
+    return out
 
 
 def _ranking(puntajes):
