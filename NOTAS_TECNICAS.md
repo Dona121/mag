@@ -1021,6 +1021,7 @@ python manage.py test contenido --settings=mag.settings_test
 | `test_dashboard_navegacion.py` | Arrastre de filtros (GET) en las pestañas del dashboard interno y del reporte público |
 | `test_imag_estructuras_mixtas.py` | Promedio por pilar en % de cumplimiento con estructuras de pesos distintos (no supera el peso; homogéneo sin cambios; ranking por pilar en la misma escala) |
 | `test_observaciones_generales.py` | Observaciones generales: se guardan sin puntajes, no pisan el aporte de otra persona, aviso de observación de subindicador descartada, permisos/login y salida en el informe Excel/PDF |
+| `test_reporte_ranking.py` | Reporte de Ranking en Excel: hoja = periodo, versión en fila 1, orden y desempate alfabético, igual al ranking del dashboard, "Todas las categorías", puesto real con dependencias marcadas |
 
 > **Nota de fidelidad:** un `<select>` real nunca envía cadena vacía, y `Evaluacion.save()`
 > valida el `UniqueConstraint` vía `full_clean()` (por eso el duplicado lanza

@@ -7,7 +7,7 @@ el flujo previo en Excel + Power BI por un sistema web con:
 - **Parametrización** del modelo de evaluación (pilares, indicadores, subindicadores, criterios y pesos).
 - **Diligenciamiento** de puntajes por periodo y dependencia, con permisos por indicador.
 - **Dashboard interno** (con login) y **reporte público** (`/reporte/`, sin login), ambos réplica de las 4 vistas del Power BI: **IMAG, Desempeño, Ranking y Variaciones**.
-- **Reportes** descargables en **Excel y PDF** por dependencia (`/reportes/`), con la misma estructura jerárquica de la pantalla de evaluación.
+- **Reportes** descargables en **Excel y PDF** por dependencia (`/reportes/`), con la misma estructura jerárquica de la pantalla de evaluación, y el **ranking de dependencias** en Excel.
 
 ---
 

@@ -323,8 +323,12 @@ def _promedios_por_pilar(categoria, modelo, periodo, pilar=None):
 
 
 def _ranking(puntajes):
-    """{dep_id: posicion} ordenando por total descendente (1 = mejor)."""
-    orden = sorted(puntajes.items(), key=lambda kv: kv[1][1], reverse=True)
+    """{dep_id: posicion} ordenando por total descendente (1 = mejor).
+
+    Empate de puntaje -> orden alfabético por nombre, para que el puesto no dependa del
+    orden en que la BD devuelve las filas (el dashboard y el Excel de ranking coinciden).
+    """
+    orden = sorted(puntajes.items(), key=lambda kv: (-kv[1][1], kv[1][0] or ""))
     return {dep_id: i + 1 for i, (dep_id, _) in enumerate(orden)}
 
 
@@ -1253,39 +1257,29 @@ def reportes(request):
         "periodos": periodos, "periodo": periodo,
         "dependencias": dependencias, "sel_deps": sel_deps,
         "todas_categorias": TODAS_CATEGORIAS,
+        # el tipo elegido se conserva al cambiar filtros (el form de filtros es GET)
+        "tipo_ranking": request.GET.get("tipo") == "ranking",
     })
 
 
 @login_required
 def reporte_generar(request):
-    """Genera y descarga el informe (Excel o PDF) según los filtros del POST."""
+    """Genera y descarga el informe según los filtros del POST.
+
+    `tipo=dependencia` (por defecto): informe de evaluación por dependencia, Excel o PDF.
+    `tipo=ranking`: ranking de dependencias en Excel (ver `_generar_ranking`).
+    """
     if request.method != "POST":
         return redirect("contenido:reportes")
 
-    categorias = _categorias_disponibles()
-    versiones = _versiones_disponibles()
-
-    try:
-        modelo = int(request.POST.get("modelo"))
-    except (TypeError, ValueError):
-        modelo = None
-    if modelo not in versiones:
-        modelo = _resolver_version(request, versiones)
-
-    cat_raw = request.POST.get("categoria")
-    if cat_raw == "todas":
-        categoria = TODAS_CATEGORIAS
-    else:
-        categoria = _resolver(categorias, cat_raw) or (categorias[0] if categorias else None)
-
-    periodos = _periodos_con_datos(categoria, modelo, None, solo_publicos=False)
-    periodo = _resolver(periodos, request.POST.get("periodo")) or (periodos[0] if periodos else None)
-    if periodo is None or categoria is None:
-        messages.warning(request, "No hay datos para los filtros seleccionados.")
+    filtros = _filtros_reporte_post(request)
+    if filtros is None:
         return redirect("contenido:reportes")
+    modelo, categoria, periodo, alcance, elegidas = filtros
 
-    alcance = {str(d.pk): d for d in _deps_en_alcance(categoria, modelo, periodo)}
-    elegidas = [pk for pk in request.POST.getlist("dependencia") if pk in alcance]
+    if request.POST.get("tipo") == "ranking":
+        return _generar_ranking(request, modelo, categoria, periodo, alcance, elegidas)
+
     deps = [alcance[pk] for pk in elegidas] if elegidas else list(alcance.values())
     if not deps:
         messages.warning(request, "No hay dependencias con evaluación para esos filtros.")
@@ -1316,6 +1310,89 @@ def reporte_generar(request):
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
         resp["Content-Disposition"] = 'attachment; filename="{}.xlsx"'.format(nombre)
+    return resp
+
+
+def _filtros_reporte_post(request):
+    """Resuelve versión, categoría, periodo y dependencias del POST de Reportes (los mismos
+    filtros para ambos tipos de informe). Devuelve (modelo, categoria, periodo, alcance,
+    elegidas) — `alcance` = {pk_str: Dependencia} con evaluación en esos filtros y
+    `elegidas` = pks marcados dentro del alcance (vacío = todas) — o None si no hay datos
+    (deja el mensaje para el usuario)."""
+    categorias = _categorias_disponibles()
+    versiones = _versiones_disponibles()
+
+    try:
+        modelo = int(request.POST.get("modelo"))
+    except (TypeError, ValueError):
+        modelo = None
+    if modelo not in versiones:
+        modelo = _resolver_version(request, versiones)
+
+    cat_raw = request.POST.get("categoria")
+    if cat_raw == "todas":
+        categoria = TODAS_CATEGORIAS
+    else:
+        categoria = _resolver(categorias, cat_raw) or (categorias[0] if categorias else None)
+
+    periodos = _periodos_con_datos(categoria, modelo, None, solo_publicos=False)
+    periodo = _resolver(periodos, request.POST.get("periodo")) or (periodos[0] if periodos else None)
+    if periodo is None or categoria is None:
+        messages.warning(request, "No hay datos para los filtros seleccionados.")
+        return None
+
+    alcance = {str(d.pk): d for d in _deps_en_alcance(categoria, modelo, periodo)}
+    elegidas = [pk for pk in request.POST.getlist("dependencia") if pk in alcance]
+    return modelo, categoria, periodo, alcance, elegidas
+
+
+def _generar_ranking(request, modelo, categoria, periodo, alcance, elegidas):
+    """Ranking de dependencias en Excel.
+
+    Usa el mismo cálculo que la vista Ranking del dashboard (`_puntajes_por_dependencia`
+    + `_ranking`: puntaje total de cada dependencia sobre 100, posición 1 = mejor; con
+    "Todas las categorías" es un ranking general). Si se marcaron dependencias, el Excel
+    muestra solo esas, pero cada una conserva su puesto en el ranking completo. Una
+    dependencia evaluada sin ningún resultado entra con 0, al final.
+    """
+    if not alcance:
+        messages.warning(request, "No hay dependencias con evaluación para esos filtros.")
+        return redirect("contenido:reportes")
+    puntajes = _puntajes_por_dependencia(categoria, modelo, periodo)
+    for d in alcance.values():  # evaluadas sin resultados: puntaje 0 (no cambian a las demás)
+        puntajes.setdefault(d.pk, (d.nombre, Decimal("0")))
+    posiciones = _ranking(puntajes)
+
+    cats = dict(
+        Evaluacion.objects
+        .filter(periodo=periodo, modelo_evaluacion__version=modelo,
+                dependencia_id__in=[d.pk for d in alcance.values()])
+        .values_list("dependencia_id", "categoria__nombre")
+    )
+    visibles = {int(pk) for pk in elegidas} if elegidas else {d.pk for d in alcance.values()}
+    filas = sorted(
+        (
+            {
+                "categoria": cats.get(dep_id) or "—",
+                "dependencia": nombre,
+                "puntaje": _q2(total),
+                "posicion": posiciones[dep_id],
+            }
+            for dep_id, (nombre, total) in puntajes.items() if dep_id in visibles
+        ),
+        key=lambda f: f["posicion"],
+    )
+
+    from . import reportes as reportes_mod  # import perezoso (evita ciclo)
+    xlsx = reportes_mod.generar_excel_ranking(filas, version=modelo, periodo=str(periodo))
+    cat_txt = "todas" if categoria is TODAS_CATEGORIAS else str(categoria)
+    nombre = "Ranking_MAG_v{}_{}".format(
+        modelo, slugify("{}-{}-{}".format(cat_txt, periodo, periodo.vigencia or "")))
+    resp = HttpResponse(
+        xlsx.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    resp["Content-Disposition"] = 'attachment; filename="{}.xlsx"'.format(nombre)
     return resp
 
 

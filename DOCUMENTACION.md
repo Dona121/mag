@@ -590,6 +590,21 @@ público, el reporte muestra el aviso correspondiente.
     persona: si alguien más lo cambió mientras editabas, no se guarda y se avisa.
 23. **Textos del informe:** título `INFORME - MODELO DE ALTA GERENCIA` (antes con "·") en PDF,
     Excel y membrete de `/reportes/`; opción `Todas - una hoja por cada una` (antes "—").
+24. **Reporte de Ranking en Excel** en `/reportes/` (selector *Tipo de informe*) — ver §15.5.
+25. **Desempate del ranking:** a igual puntaje, orden alfabético (`_ranking`). Antes el orden de
+    los empatados dependía de cómo la BD devolvía las filas; ahora el dashboard y el Excel coinciden.
+26. **PDF más nítido:** el texto normal usa **Montserrat Medium** (500, `static/fonts/
+    Montserrat-Medium.ttf`, licencia OFL en `OFL-Montserrat.txt`) en vez de Regular, y la tinta
+    pasa del gris #5a595d a #232226 (pie #46454a). Misma paginación. Sin el archivo, vuelve a Regular.
+27. **Guion en lugar de "·" / "—":** periodo `Abril - Mayo - Junio - 2026` en la pantalla de Reportes
+    y en la línea Periodo del informe Excel/PDF; barra superior interna `Modelo de Alta Gerencia -
+    <pantalla>` (y `Periodos - <nombre>`); pie `© 2026 Gobernación de Sucre - Modelo de Alta Gerencia`.
+28. **Cabeceras más limpias:** reporte público sin "Tablero de resultados · Gobernación de Sucre" ni
+    "· Tablero de resultados" en la barra superior; dashboard interno sin "Dashboard interno · Modelo
+    de Alta Gerencia" ni el título de la vista (las pestañas ya lo indican), con la fila de chips a la
+    izquierda.
+29. **Filtros del reporte público sin sombreado amarillo:** el foco de los selectores y el hover de
+    "Restablecer" usan un borde blanco en vez del naranja con halo.
 
 ---
 
@@ -976,6 +991,22 @@ Ponderación | Observaciones**, cabecera de 2 filas, **logo de Planeación** (qu
 Ambas vistas llevan `@login_required` y están en `EVALUADOR_URLS_PERMITIDAS` (`roles.py`): las ve
 **todo usuario con login**, incluido el rol Evaluador.
 
+### 15.5. Reporte de Ranking (Excel)
+En el panel derecho de `/reportes/`, **Tipo de informe → Ranking** (el tipo se conserva al cambiar
+filtros; con Ranking el formato queda en Excel y el contador muestra "1 hoja"). Mismo POST a
+`reporte_generar` con `tipo=ranking` → `_generar_ranking` + `reportes.generar_excel_ranking`; los
+filtros se resuelven con `_filtros_reporte_post`, compartido con el informe por dependencia.
+
+- **Cálculo:** el mismo de la vista Ranking del dashboard (`_puntajes_por_dependencia` + `_ranking`):
+  puntaje total de la dependencia (sobre 100, 2 decimales), puesto 1 = mejor, empate alfabético.
+  Con "Todas las categorías" es un ranking general. Una dependencia evaluada sin ningún resultado
+  entra con 0, al final.
+- **Dependencias marcadas:** el Excel muestra solo esas, con su **puesto real** en el ranking completo.
+- **Excel sin formato** (sin estilos, filtros ni paneles fijados; solo anchos de columna): hoja =
+  nombre del periodo; fila 1 = `Versión del modelo: N`; fila 2 = `Categoría | Dependencia | Puntaje |
+  Ranking`; luego una fila por dependencia ordenada por puesto. Archivo
+  `Ranking_MAG_v<versión>_<categoría>-<periodo>-<vigencia>.xlsx`.
+
 ---
 
 ## 16. Pruebas automatizadas (tests)
@@ -1010,6 +1041,7 @@ almacenamiento estático sin *manifest* (no exige `collectstatic`).
 | `test_dashboard_navegacion.py` | Las pestañas del dashboard interno y del reporte público arrastran los filtros (GET) |
 | `test_imag_estructuras_mixtas.py` | IMAG por categoría con estructuras de pesos distintos: el pilar no supera su peso, se promedian %, categoría homogénea sin cambios y ranking por pilar en la misma escala |
 | `test_observaciones_generales.py` | Observaciones generales: se guardan sin puntajes, no pisan el aporte de otra persona, aviso de observación de subindicador descartada, login/permisos y salida en Excel/PDF |
+| `test_reporte_ranking.py` | Reporte de Ranking: estructura de la hoja (nombre = periodo, versión en fila 1, cabecera), orden y desempate, coincidencia con el dashboard, "Todas las categorías", puesto real con dependencias marcadas, evaluada sin resultados, y que el informe por dependencia no cambia |
 
 Detalle técnico (settings de test, notas de fidelidad) en `NOTAS_TECNICAS.md`, Parte VII.
 

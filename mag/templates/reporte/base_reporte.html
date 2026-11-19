@@ -80,11 +80,11 @@ body.r-body{
 }
 .d-f select option{color:var(--tinta); background:#fff;}
 .d-f select:hover{border-color:rgba(255,255,255,.45); background-color:rgba(255,255,255,.12);}
-.d-f select:focus-visible{outline:none; border-color:var(--naranja); box-shadow:0 0 0 3px rgba(255,167,0,.25);}
+.d-f select:focus, .d-f select:focus-visible{outline:none; border-color:rgba(255,255,255,.75); box-shadow:none;}
 .d-f select:disabled{opacity:.45; cursor:not-allowed;}
 .d-clear{display:block; margin-top:4px; text-align:center; font-size:12.5px; font-weight:600; color:rgba(255,255,255,.9);
   text-decoration:none; border:1px solid rgba(255,255,255,.25); border-radius:var(--radio); padding:8px 15px; transition:.2s;}
-.d-clear:hover{color:#fff; border-color:var(--naranja); background:rgba(255,255,255,.06);}
+.d-clear:hover{color:#fff; border-color:rgba(255,255,255,.75); background:rgba(255,255,255,.06);}
 .d-btn{font:inherit; font-weight:700; font-size:13px; background:var(--verde); color:#fff; border:0; border-radius:var(--radio); padding:10px 16px; cursor:pointer;}
 
 /* Colapsado (solo escritorio): quedan los íconos; marca, etiquetas y filtros se ocultan */
@@ -309,7 +309,7 @@ try{ if(!window.matchMedia('(max-width: 900px)').matches && localStorage.getItem
     <button type="button" class="toggle-btn" id="toggle-sidebar" aria-label="Mostrar u ocultar el panel lateral">
       <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <div class="breadcrumb"><strong>Modelo de Alta Gerencia</strong> · Tablero de resultados</div>
+    <div class="breadcrumb"><strong>Modelo de Alta Gerencia</strong></div>
     <div class="right-area">
       <a class="d-login" href="{% url 'contenido:login' %}" title="Ingresar al sistema (equipo de la Gobernación)">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
@@ -321,7 +321,6 @@ try{ if(!window.matchMedia('(max-width: 900px)').matches && localStorage.getItem
   <div class="r-contenido">
     <div class="dr-head">
       <div>
-        <span class="r-eyebrow">Tablero de resultados · Gobernación de Sucre</span>
         <h1>{% if vista == 'imag' %}IMAG{% elif vista == 'desempeno' %}Desempeño{% elif vista == 'ranking' %}Ranking{% else %}Variaciones{% endif %}</h1>
       </div>
       <div class="dr-meta">{% block topmeta %}{% endblock %}</div>

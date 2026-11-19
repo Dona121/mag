@@ -158,9 +158,7 @@ toolbar, cuerpo, data, scripts.
 
   /* ---------------------------------- Cabecera + sub-pestañas (interno) ---- */
   .r-body .r-wrap{max-width:none; margin:0; padding:0;}
-  .dr-head{display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:12px;}
-  .dr-head h1{font-size:22px; font-weight:800; color:var(--gris-oscuro); margin:2px 0 0; letter-spacing:-.2px;}
-  .dr-head .r-eyebrow{color:var(--verde);}
+  .dr-head{display:flex; align-items:flex-end; justify-content:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:12px;}
   .dr-meta{display:flex; gap:9px; flex-wrap:wrap; align-items:center;}
   .d-chip{font-size:12.5px; font-weight:600; color:var(--gris-medio); border:1px solid var(--linea); border-radius:var(--radio); padding:6px 13px;}
   .d-chip strong{color:var(--surface); font-weight:800;}
@@ -187,10 +185,6 @@ toolbar, cuerpo, data, scripts.
 <div class="r-body">
 
   <div class="dr-head">
-    <div>
-      <span class="r-eyebrow">Dashboard interno · Modelo de Alta Gerencia</span>
-      <h1>{% if vista == 'imag' %}IMAG{% elif vista == 'desempeno' %}Desempeño{% elif vista == 'ranking' %}Ranking{% else %}Variaciones{% endif %}</h1>
-    </div>
     <div class="dr-meta">
       <span class="dr-flag" title="Incluye periodos aún no publicados al reporte público">Todos los periodos</span>
       <a class="dr-btn-pub" href="{% url url_publico %}" target="_blank" rel="noopener"

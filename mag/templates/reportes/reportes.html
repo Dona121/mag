@@ -122,6 +122,12 @@
 }
 .rep-seg input:checked + span { background: var(--verde-primario); color: var(--blanco); }
 .rep-seg input:focus-visible + span { box-shadow: var(--sombra-foco); }
+.rep-seg input:disabled + span { opacity: .4; cursor: not-allowed; }
+.rep-tipo .rep-seg span { font-size: 11.5px; }
+.rep-grupo-l {
+    display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--gris-medio); margin: 0 0 6px;
+}
 
 .rep-generar { width: 100%; justify-content: center; font-size: 14px; padding: 11px 18px; }
 .rep-generar:disabled { opacity: .5; cursor: not-allowed; filter: none; }
@@ -139,7 +145,7 @@
 {% block contenido %}
 <div class="seccion-titulo">
     <h1>Reportes</h1>
-    <span class="lead">Genera el informe de evaluación por dependencia en Excel o PDF.</span>
+    <span class="lead">Genera el informe de evaluación por dependencia (Excel o PDF) o el ranking de dependencias (Excel).</span>
 </div>
 
 <form id="rep-form" method="get" action="{% url 'contenido:reportes' %}" class="rep-grid">
@@ -170,7 +176,7 @@
                     <span>Periodo</span>
                     <select name="periodo" onchange="this.form.submit()" {% if not periodos %}disabled{% endif %}>
                         {% for p in periodos %}
-                        <option value="{{ p.pk }}" {% if periodo and p.pk == periodo.pk %}selected{% endif %}>{{ p }}{% if p.vigencia %} · {{ p.vigencia }}{% endif %}</option>
+                        <option value="{{ p.pk }}" {% if periodo and p.pk == periodo.pk %}selected{% endif %}>{{ p }}{% if p.vigencia %} - {{ p.vigencia }}{% endif %}</option>
                         {% empty %}
                         <option>— sin periodos con datos —</option>
                         {% endfor %}
@@ -188,7 +194,7 @@
             </div>
             <div class="rep-lista" id="rep-lista" data-total="{{ dependencias|length }}">
                 <div class="rep-todas on" id="rep-todas">
-                    <span class="rep-todas-t">Todas - una hoja por cada una</span>
+                    <span class="rep-todas-t" id="rep-todas-t">{% if tipo_ranking %}Todas - en una sola hoja{% else %}Todas - una hoja por cada una{% endif %}</span>
                     <span class="rep-todas-s">Estado por defecto cuando no eliges ninguna.</span>
                 </div>
                 {% for d in dependencias %}
@@ -209,26 +215,32 @@
         <div class="rep-mem-bar"></div>
         <div class="rep-mem-body">
             <img class="rep-mem-logo" src="{% static 'logos/2025_logo-gob-Sucre_2.png' %}" alt="Gobernación de Sucre">
-            <p class="rep-mem-t">INFORME - MODELO DE ALTA GERENCIA</p>
+            <p class="rep-mem-t" id="rep-mem-t">{% if tipo_ranking %}RANKING{% else %}INFORME{% endif %} - MODELO DE ALTA GERENCIA</p>
             <dl class="rep-mem-info">
                 <div><dt>Categoría</dt><dd>{{ categoria|default:"—" }}</dd></div>
-                <div><dt>Periodo</dt><dd>{% if periodo %}{{ periodo }}{% if periodo.vigencia %} · {{ periodo.vigencia }}{% endif %}{% else %}—{% endif %}</dd></div>
+                <div><dt>Periodo</dt><dd>{% if periodo %}{{ periodo }}{% if periodo.vigencia %} - {{ periodo.vigencia }}{% endif %}{% else %}—{% endif %}</dd></div>
                 <div><dt>Versión</dt><dd>{{ version|default:"—" }}</dd></div>
             </dl>
+            <span class="rep-grupo-l">Tipo de informe</span>
+            <div class="rep-formato rep-tipo" role="radiogroup" aria-label="Tipo de informe">
+                <label class="rep-seg"><input type="radio" name="tipo" value="dependencia" {% if not tipo_ranking %}checked{% endif %}><span>Por dependencia</span></label>
+                <label class="rep-seg"><input type="radio" name="tipo" value="ranking" {% if tipo_ranking %}checked{% endif %}><span>Ranking</span></label>
+            </div>
             <div class="rep-manifiesto">
                 <span class="rep-num" id="rep-num">{{ dependencias|length }}</span>
                 <span class="rep-num-l">dependencias</span>
                 <span class="rep-arrow">&rarr;</span>
-                <span class="rep-num" id="rep-hojas">{{ dependencias|length }}</span>
-                <span class="rep-num-l">hojas</span>
+                <span class="rep-num" id="rep-hojas">{% if tipo_ranking %}1{% else %}{{ dependencias|length }}{% endif %}</span>
+                <span class="rep-num-l" id="rep-hojas-l">{% if tipo_ranking %}hoja{% else %}hojas{% endif %}</span>
             </div>
+            <span class="rep-grupo-l">Formato</span>
             <div class="rep-formato" role="radiogroup" aria-label="Formato del informe">
                 <label class="rep-seg"><input type="radio" name="formato" value="excel" checked><span>Excel</span></label>
-                <label class="rep-seg"><input type="radio" name="formato" value="pdf"><span>PDF</span></label>
+                <label class="rep-seg"><input type="radio" name="formato" value="pdf" id="rep-fmt-pdf" {% if tipo_ranking %}disabled{% endif %}><span>PDF</span></label>
             </div>
-            <button type="submit" class="btn btn-primario rep-generar"
+            <button type="submit" class="btn btn-primario rep-generar" id="rep-generar"
                     formmethod="post" formaction="{% url 'contenido:reporte_generar' %}"
-                    {% if not dependencias %}disabled{% endif %}>Generar informe</button>
+                    {% if not dependencias %}disabled{% endif %}>{% if tipo_ranking %}Generar ranking{% else %}Generar informe{% endif %}</button>
             {% if not periodos %}
             <p class="rep-nota">Elige una versión y categoría con datos para habilitar el informe.</p>
             {% endif %}
@@ -250,13 +262,35 @@
     const hojaEl = document.getElementById('rep-hojas');
     const boxes  = Array.from(lista.querySelectorAll('input[name="dependencia"]'));
 
+    const tipos   = Array.from(document.querySelectorAll('input[name="tipo"]'));
+    const fmtPdf  = document.getElementById('rep-fmt-pdf');
+    const fmtXls  = document.querySelector('input[name="formato"][value="excel"]');
+    const hojaLbl = document.getElementById('rep-hojas-l');
+    const memT    = document.getElementById('rep-mem-t');
+    const todasT  = document.getElementById('rep-todas-t');
+    const btnGen  = document.getElementById('rep-generar');
+
     function marcadas() { return boxes.filter(b => b.checked); }
+    function esRanking() { return tipos.some(t => t.checked && t.value === 'ranking'); }
+
+    // Ranking = una sola hoja y solo Excel; por dependencia = una hoja por dependencia, Excel o PDF.
+    function aplicarTipo() {
+        const r = esRanking();
+        if (r && fmtPdf.checked) { fmtXls.checked = true; }
+        fmtPdf.disabled = r;
+        memT.textContent = (r ? 'RANKING' : 'INFORME') + ' - MODELO DE ALTA GERENCIA';
+        todasT.textContent = r ? 'Todas - en una sola hoja' : 'Todas - una hoja por cada una';
+        btnGen.textContent = r ? 'Generar ranking' : 'Generar informe';
+        refrescar();
+    }
+    tipos.forEach(t => t.addEventListener('change', aplicarTipo));
 
     function refrescar() {
         const sel = marcadas();
         const n = sel.length ? sel.length : total;
         numEl.textContent = n;
-        hojaEl.textContent = n;
+        hojaEl.textContent = esRanking() ? 1 : n;
+        hojaLbl.textContent = (esRanking() || n === 1) ? 'hoja' : 'hojas';
         todas.classList.toggle('on', sel.length === 0);
         // chips de las seleccionadas
         chips.innerHTML = '';

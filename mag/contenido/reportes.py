@@ -45,6 +45,10 @@ RGB_IND = (233, 244, 234)
 RGB_AZUL = (11, 114, 171)
 RGB_GRIS = (90, 89, 93)
 RGB_GRIS_CLARO = (223, 224, 225)
+# Tintas del texto del PDF: más oscuras que el gris institucional para que la letra pequeña
+# de la tabla (6,5 pt) se lea nítida. Las mismas del reporte público (--tinta / --tinta-2).
+RGB_TINTA = (35, 34, 38)      # texto principal (#232226)
+RGB_TINTA_2 = (70, 69, 74)    # texto secundario: pie de página (#46454a)
 # Separador entre pilares: mismo ancho (0.2) que el resto de la grilla, pero un gris algo más
 # oscuro para que la línea SÍ se vea sobre el relleno de las columnas Pilar/Indicador (el gris
 # claro de la grilla queda invisible ahí porque tiene casi la misma luminancia que el verde).
@@ -59,6 +63,9 @@ LOGOS_REL = [
 ]
 MONT_REG = "fonts/Montserrat-Regular.ttf"
 MONT_BOLD = "fonts/Montserrat-Bold.ttf"
+# Texto normal del PDF en peso Medium (500): la Regular es de trazo fino y a 6,5 pt se ve
+# desvaída; Medium la hace nítida sin llegar a negrita. Si falta el archivo, se usa Regular.
+MONT_MED = "fonts/Montserrat-Medium.ttf"
 NUMFMT = "0.00###"  # mínimo 2 decimales, hasta 5 (igual que el filtro `decimales`)
 
 _MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
@@ -175,6 +182,29 @@ def generar_excel(items):
     return bio
 
 
+def generar_excel_ranking(filas, version, periodo):
+    """Ranking de dependencias en una hoja, sin formato (datos planos, sin paneles fijados).
+    `filas`: dicts {categoria, dependencia, puntaje, posicion} ya ordenados por posición.
+    Hoja = nombre del periodo; fila 1 = versión del modelo; fila 2 = cabecera; luego los
+    datos. Solo se fijan anchos de columna para que los nombres se lean."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = _sheet_title(periodo, set())
+
+    ws.append(["Versión del modelo: {}".format(version)])
+    ws.append(["Categoría", "Dependencia", "Puntaje", "Ranking"])
+    for f in filas:
+        ws.append([f["categoria"], f["dependencia"], _num(f["puntaje"]), f["posicion"]])
+
+    for col, w in (("A", 18), ("B", 52), ("C", 12), ("D", 11)):
+        ws.column_dimensions[col].width = w
+
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return bio
+
+
 def _head_cell(ws, r, c, texto, fill, alignment, borde):
     cell = ws.cell(r, c, texto)
     cell.font = Font(bold=True, color=BLANCO, size=10)
@@ -207,7 +237,7 @@ def _excel_hoja(ws, it, logo_png):
     info = [
         ("Categoría", it["categoria"]),
         ("Dependencia", it["dependencia"]),
-        ("Periodo", "{}{}".format(it["periodo"], " · {}".format(it["vigencia"]) if it["vigencia"] else "")),
+        ("Periodo", "{}{}".format(it["periodo"], " - {}".format(it["vigencia"]) if it["vigencia"] else "")),
         ("Versión", str(it["version"])),
     ]
     for i, (k, v) in enumerate(info, start=2):
@@ -398,7 +428,7 @@ def _pdf_base():
         def footer(self):
             self.set_y(-11)
             self.set_font(self.familia, "", 7)
-            self.set_text_color(*RGB_GRIS)
+            self.set_text_color(*RGB_TINTA_2)
             self.set_draw_color(*RGB_GRIS_CLARO)
             self.set_line_width(0.2)
             self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
@@ -408,7 +438,8 @@ def _pdf_base():
             self.cell(half, 5, "Página {} de {{nb}}".format(self.page_no()), align="R")
 
     pdf = _InformePDF(orientation="L", unit="mm", format="A4")
-    reg, bold = finders.find(MONT_REG), finders.find(MONT_BOLD)
+    reg = finders.find(MONT_MED) or finders.find(MONT_REG)
+    bold = finders.find(MONT_BOLD)
     if reg and bold:
         try:
             pdf.add_font("Montserrat", "", reg)
@@ -451,7 +482,7 @@ def _pdf_observaciones(pdf, it):
     pdf.set_font(pdf.familia, "B", 8)
     pdf.cell(ancho, 6, _t(pdf, "  OBSERVACIONES GENERALES"), fill=True,
              new_x="LMARGIN", new_y="NEXT")
-    pdf.set_text_color(*RGB_GRIS)
+    pdf.set_text_color(*RGB_TINTA)
     pdf.set_draw_color(*RGB_GRIS_CLARO)
     pdf.set_line_width(0.2)
     pdf.set_font(pdf.familia, "", 8.5)
@@ -473,12 +504,12 @@ def _pdf_encabezado(pdf, it, logo):
     pdf.set_text_color(*RGB_VERDE_SUP)
     pdf.cell(0, 7, _t(pdf, "INFORME - MODELO DE ALTA GERENCIA"), new_x="LMARGIN", new_y="NEXT")
 
-    per = "{}{}".format(it["periodo"], " · {}".format(it["vigencia"]) if it["vigencia"] else "")
+    per = "{}{}".format(it["periodo"], " - {}".format(it["vigencia"]) if it["vigencia"] else "")
     lineas = [
         ("Categoría", it["categoria"]), ("Dependencia", it["dependencia"]),
         ("Periodo", per), ("Versión", str(it["version"])),
     ]
-    pdf.set_text_color(*RGB_GRIS)
+    pdf.set_text_color(*RGB_TINTA)
     for k, v in lineas:
         pdf.set_font(pdf.familia, "B", 9)
         pdf.cell(pdf.get_string_width(_t(pdf, k + ": ")) + 1, 5, _t(pdf, k + ":"))
@@ -595,7 +626,7 @@ def _pdf_tabla(pdf, it):
     pil_label, ind_label = _filas_rotulo(it["pilares"])
 
     pdf.set_font(pdf.familia, "", 6.5)
-    pdf.set_text_color(*RGB_GRIS)
+    pdf.set_text_color(*RGB_TINTA)
     pdf.set_draw_color(*RGB_GRIS_CLARO)
     pdf.set_line_width(0.2)
 
