@@ -605,6 +605,10 @@ público, el reporte muestra el aviso correspondiente.
     izquierda.
 29. **Filtros del reporte público sin sombreado amarillo:** el foco de los selectores y el hover de
     "Restablecer" usan un borde blanco en vez del naranja con halo.
+30. **Títulos de sección sin el cuadro verde** a la izquierda (`.seccion-titulo::before` quitado en
+    `base.html` y en el login).
+31. **Sombras de tarjetas más suaves** (~mitad): `--sombra-suave` en `base.html` y `--sombra` en
+    `dashboard_reporte.html` / `base_reporte.html` (sombra verdosa de 45 % a 22 % de opacidad).
 
 ---
 
