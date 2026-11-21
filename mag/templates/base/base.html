@@ -313,14 +313,6 @@
             <ul class="nav">
                 <li class="seccion-label"><span class="label">General</span></li>
                 <li>
-                    <a href="{% url 'contenido:dashboard' %}"
-                       class="{% if request.resolver_match.url_name == 'dashboard' %}activo{% endif %}"
-                       title="Inicio">
-                        <span class="icon"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg></span>
-                        <span class="label">Inicio</span>
-                    </a>
-                </li>
-                <li>
                     <a href="{% url 'contenido:dashboard_imag' %}"
                        class="{% if 'dashboard_' in request.resolver_match.url_name %}activo{% endif %}"
                        title="Dashboard">
@@ -454,7 +446,7 @@
                 <svg viewBox="0 0 24 24"><line x1="3" y1="6"  x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
             <div class="breadcrumb">
-                <strong>Modelo de Alta Gerencia</strong> - {% block breadcrumb %}Inicio{% endblock %}
+                <strong>Modelo de Alta Gerencia</strong> - {% block breadcrumb %}Dashboard{% endblock %}
             </div>
             <div class="right-area">
                 <span>Gobernación de Sucre</span>

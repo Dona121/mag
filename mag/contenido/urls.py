@@ -39,7 +39,7 @@ urlpatterns = [
         name="password_change_done",
     ),
 
-    # --------------------------------------------------------------- Inicio
+    # ---------------------------------------- Raíz (redirige al Dashboard)
     path("", views.dashboard, name="dashboard"),
 
     # Dashboard interno (con login): mismas 4 vistas del reporte, dentro del shell

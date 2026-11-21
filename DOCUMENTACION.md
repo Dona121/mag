@@ -210,7 +210,7 @@ El control de acceso tiene **dos capas independientes** (se combinan). Los
 
 **2. Rol `Evaluador` (grupo de Django)**
 - Creado por la migración `0016_grupo_evaluador`. Un Evaluador solo gestiona
-  evaluaciones: en el panel ve **General** (Inicio + Dashboard), **Operación →
+  evaluaciones: en el panel ve **General** (Dashboard + Reportes), **Operación →
   Evaluaciones** y **Cuenta**; no ve Parametrización, Periodos ni el admin.
 - Lógica en `contenido/roles.py` (`es_evaluador`, `EVALUADOR_URLS_PERMITIDAS`).
 - `RolEvaluadorMiddleware` aplica **deny-by-default**: cualquier URL fuera de la lista
@@ -295,7 +295,7 @@ los 12.
 
 | Ruta | Vista | Propósito |
 |---|---|---|
-| `/` | `dashboard` | Inicio con métricas y últimas evaluaciones |
+| `/` | `dashboard` | Raíz del panel y destino del login: redirige al Dashboard (`/dashboard/`) |
 | `/dashboard/` | `dashboard_imag` | **Dashboard interno** (con login) — vista IMAG |
 | `/dashboard/desempeno/` | `dashboard_desempeno` | Dashboard interno — vista Desempeño |
 | `/dashboard/ranking/` | `dashboard_ranking` | Dashboard interno — vista Ranking |
@@ -609,6 +609,9 @@ público, el reporte muestra el aviso correspondiente.
     `base.html` y en el login).
 31. **Sombras de tarjetas más suaves** (~mitad): `--sombra-suave` en `base.html` y `--sombra` en
     `dashboard_reporte.html` / `base_reporte.html` (sombra verdosa de 45 % a 22 % de opacidad).
+32. **Se retiró la portada "Inicio"** del módulo General: `/` (destino del login) redirige al
+    Dashboard y se eliminó `base/dashboard.html`. Las páginas que caían en la ruta por defecto
+    "Inicio" ahora muestran la suya (Evaluaciones, Modelos, Cuenta).
 
 ---
 
@@ -1046,6 +1049,7 @@ almacenamiento estático sin *manifest* (no exige `collectstatic`).
 | `test_imag_estructuras_mixtas.py` | IMAG por categoría con estructuras de pesos distintos: el pilar no supera su peso, se promedian %, categoría homogénea sin cambios y ranking por pilar en la misma escala |
 | `test_observaciones_generales.py` | Observaciones generales: se guardan sin puntajes, no pisan el aporte de otra persona, aviso de observación de subindicador descartada, login/permisos y salida en Excel/PDF |
 | `test_reporte_ranking.py` | Reporte de Ranking: estructura de la hoja (nombre = periodo, versión en fila 1, cabecera), orden y desempate, coincidencia con el dashboard, "Todas las categorías", puesto real con dependencias marcadas, evaluada sin resultados, y que el informe por dependencia no cambia |
+| `test_inicio_retirado.py` | Sin portada "Inicio": `/` y el login llevan al Dashboard (admin y evaluador), el menú no la muestra y sin sesión pide login |
 
 Detalle técnico (settings de test, notas de fidelidad) en `NOTAS_TECNICAS.md`, Parte VII.
 

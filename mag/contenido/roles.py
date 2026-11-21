@@ -4,7 +4,7 @@ Rol "Evaluador".
 Un Evaluador (grupo de Django `Evaluador`) solo gestiona evaluaciones: ve las
 evaluaciones activas y asigna/modifica el puntaje de los indicadores que tiene
 asignados en su PerfilUsuario. En el panel solo accede a los modulos General
-(Inicio + Dashboard), Operacion > Evaluaciones y Cuenta.
+(Dashboard y Reportes), Operacion > Evaluaciones y Cuenta.
 
 El control se aplica en dos capas:
   - `RolEvaluadorMiddleware` (server-side): bloquea cualquier URL fuera de la

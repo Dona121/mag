@@ -449,19 +449,9 @@ def _datos_dashboard(categoria, modelo, actual, anterior, pilar=None):
 
 @login_required
 def dashboard(request):
-    contexto = {
-        "total_modelos": ModeloEvaluacion.objects.count(),
-        "total_modelos_activos": ModeloEvaluacion.objects.filter(activo=True).count(),
-        "total_evaluaciones": Evaluacion.objects.filter(periodo__activo=True).count(),
-        "total_dependencias": Dependencia.objects.count(),
-        "ultimas_evaluaciones": (
-            Evaluacion.objects
-            .filter(periodo__activo=True)
-            .select_related("periodo", "dependencia", "modelo_evaluacion")
-            .order_by("-creado_en")[:5]
-        ),
-    }
-    return render(request, "base/dashboard.html", contexto)
+    """Raíz del panel (`/`, destino del login): la antigua portada "Inicio" se retiró;
+    se entra directo al Dashboard."""
+    return redirect("contenido:dashboard_imag")
 
 
 def _serie_temporal(categoria, modelo, vigencia, pilar=None, solo_publicos=False):

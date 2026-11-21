@@ -113,7 +113,7 @@ Detalle en `NOTAS_TECNICAS.md` (Parte VII) y `DOCUMENTACION.md` (§16).
 
 | Ruta | Acceso | Descripción |
 |---|---|---|
-| `/` | login | Inicio (tarjetas de resumen) |
+| `/` | login | Redirige al Dashboard interno |
 | `/dashboard/`, `/dashboard/{desempeno,ranking,variaciones}/` | login | Dashboard interno: 4 vistas del reporte **sin** restricción de periodo público (ve todos los periodos) |
 | `/reporte/`, `/reporte/{desempeno,ranking,variaciones}/` | **público** | Reporte de resultados: solo periodos marcados como públicos (filtros en sidebar izquierdo) |
 | `/reportes/` | login | **Reportes**: genera y descarga informes Excel/PDF por dependencia (filtros: versión, categoría, periodo, dependencia) |
@@ -128,7 +128,7 @@ Detalle en `NOTAS_TECNICAS.md` (Parte VII) y `DOCUMENTACION.md` (§16).
 Dos capas, **independientes pero combinables** (los **superusuarios** quedan exentos de ambas):
 
 1. **Edición por indicador (`PerfilUsuario`):** cada usuario solo edita el puntaje de los indicadores que tiene asignados; el resto los ve en **solo lectura**. La validación es server-side (un POST con indicadores no asignados se ignora).
-2. **Rol `Evaluador` (grupo de Django):** en el panel solo ve **General** (Inicio + Dashboard), **Operación → Evaluaciones** y **Cuenta**. Un middleware bloquea (deny-by-default) cualquier otra URL.
+2. **Rol `Evaluador` (grupo de Django):** en el panel solo ve **General** (Dashboard + Reportes), **Operación → Evaluaciones** y **Cuenta**. Un middleware bloquea (deny-by-default) cualquier otra URL.
 
 Para un evaluador del equipo: agréguelo al grupo **Evaluador** y asígnele sus indicadores en el `PerfilUsuario` (ambos desde el admin de User).
 
